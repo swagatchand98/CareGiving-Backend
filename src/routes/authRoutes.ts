@@ -1,5 +1,4 @@
-// routes/authRoutes.ts
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { 
   register, 
   login, 
@@ -11,7 +10,16 @@ import {
   getCurrentUser
 } from '../controllers/authController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
-import { catchAsync } from '../middleware/errorHandler';
+
+// Type definition for async route handler
+type AsyncRouteHandler = (req: Request, res: Response, next: NextFunction) => Promise<void | Response>;
+
+// Async error handling wrapper
+const catchAsync = (fn: AsyncRouteHandler) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+};
 
 const router = Router();
 
@@ -27,6 +35,5 @@ router.use(protect); // All routes below this will require authentication
 
 router.get('/me', catchAsync(getCurrentUser));
 router.post('/update-password', catchAsync(updatePassword));
-router.post('/logout', catchAsync(logout));
 
 export default router;
