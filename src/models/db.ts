@@ -1,7 +1,164 @@
-import mongoose, { Schema, Document, Model } from 'mongoose';
+import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+
+// User Interfaces
+interface IAddress {
+  street?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+}
+
+export interface IUser extends Document {
+  _id: Types.ObjectId;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role: 'user' | 'provider' | 'admin';
+  profilePicture?: string | null;
+  phoneNumber?: string | null;
+  address?: IAddress;
+  verificationStatus: 'pending' | 'verified' | 'rejected';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Provider Profile Interfaces
+interface IServiceArea {
+  city: string;
+  state: string;
+}
+
+interface ITimeSlot {
+  start: string;
+  end: string;
+}
+
+interface IAvailability {
+  day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+  timeSlots: ITimeSlot[];
+}
+
+interface IProviderProfile extends Document {
+  userId: mongoose.Types.ObjectId;
+  serviceCategories: mongoose.Types.ObjectId[];
+  bio?: string;
+  certifications: string[];
+  yearsOfExperience?: number;
+  hourlyRate: number;
+  serviceAreas: IServiceArea[];
+  availability: IAvailability[];
+  backgroundCheckVerified: boolean;
+  languagesSpoken: string[];
+}
+
+// Service Category Interface
+interface IServiceCategory extends Document {
+  name: string;
+  parentCategory?: mongoose.Types.ObjectId | null;
+  description?: string;
+  iconUrl?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Price Interface
+interface IPrice {
+  amount: number;
+  type: 'hourly' | 'fixed';
+}
+
+// Additional Details Interface
+interface IAdditionalDetails {
+  specialRequirements?: string;
+  includedServices?: string[];
+}
+
+// Service Interface
+interface IService extends Document {
+  providerId: mongoose.Types.ObjectId;
+  categoryId: mongoose.Types.ObjectId;
+  title: string;
+  description: string;
+  images?: string[];
+  price: IPrice;
+  duration?: number;
+  additionalDetails?: IAdditionalDetails;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Booking Interface
+interface IBookingAddress {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
+interface IBooking extends Document {
+  serviceId: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId;
+  providerId: mongoose.Types.ObjectId;
+  dateTime: Date;
+  duration: number;
+  status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
+  address: IBookingAddress;
+  specialInstructions?: string;
+  totalPrice: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Transaction Interface
+interface ITransaction extends Document {
+  bookingId: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId;
+  providerId: mongoose.Types.ObjectId;
+  amount: number;
+  platformCommission: number;
+  paymentMethod: 'stripe' | 'paypal';
+  stripeChargeId?: string;
+  status: 'pending' | 'completed' | 'refunded' | 'failed';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Review Interface
+interface IReview extends Document {
+  bookingId: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId;
+  providerId: mongoose.Types.ObjectId;
+  rating: number;
+  comment?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Notification Interface
+interface INotification extends Document {
+  userId: mongoose.Types.ObjectId;
+  type: 'booking' | 'message' | 'review' | 'system';
+  content: string;
+  relatedEntityId?: string;
+  isRead: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Subscription Interface
+interface ISubscription extends Document {
+  userId: mongoose.Types.ObjectId;
+  plan: 'basic' | 'premium' | 'deluxe';
+  stripeSubscriptionId?: string;
+  status: 'active' | 'cancelled' | 'past_due';
+  startDate: Date;
+  endDate?: Date;
+}
 
 // User Schema
-const UserSchema: Schema = new Schema({
+const UserSchema: Schema = new Schema<IUser>({
   email: {
     type: String,
     required: true,
@@ -71,7 +228,7 @@ const UserSchema: Schema = new Schema({
 });
 
 // Provider Profile Schema
-const ProviderProfileSchema: Schema = new Schema({
+const ProviderProfileSchema: Schema = new Schema<IProviderProfile>({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -131,7 +288,7 @@ const ProviderProfileSchema: Schema = new Schema({
 });
 
 // Service Category Schema
-const ServiceCategorySchema: Schema = new Schema({
+const ServiceCategorySchema: Schema = new Schema<IServiceCategory>({
   name: {
     type: String,
     required: true,
@@ -155,7 +312,7 @@ const ServiceCategorySchema: Schema = new Schema({
 });
 
 // Service Schema
-const ServiceSchema: Schema = new Schema({
+const ServiceSchema: Schema = new Schema<IService>({
   providerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -201,7 +358,7 @@ const ServiceSchema: Schema = new Schema({
 });
 
 // Booking Schema
-const BookingSchema: Schema = new Schema({
+const BookingSchema: Schema = new Schema<IBooking>({
   serviceId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Service',
@@ -260,7 +417,7 @@ const BookingSchema: Schema = new Schema({
 });
 
 // Transaction Schema
-const TransactionSchema: Schema = new Schema({
+const TransactionSchema: Schema = new Schema<ITransaction>({
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Booking',
@@ -302,7 +459,7 @@ const TransactionSchema: Schema = new Schema({
 });
 
 // Review Schema
-const ReviewSchema: Schema = new Schema({
+const ReviewSchema: Schema = new Schema<IReview>({
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Booking',
@@ -330,7 +487,7 @@ const ReviewSchema: Schema = new Schema({
 });
 
 // Notification Schema
-const NotificationSchema: Schema = new Schema({
+const NotificationSchema: Schema = new Schema<INotification>({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -355,7 +512,7 @@ const NotificationSchema: Schema = new Schema({
 });
 
 // Subscription Schema
-const SubscriptionSchema: Schema = new Schema({
+const SubscriptionSchema: Schema = new Schema<ISubscription>({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -380,12 +537,12 @@ const SubscriptionSchema: Schema = new Schema({
 });
 
 // Create Models
-export const User = mongoose.model('User', UserSchema);
-export const ProviderProfile = mongoose.model('ProviderProfile', ProviderProfileSchema);
-export const ServiceCategory = mongoose.model('ServiceCategory', ServiceCategorySchema);
-export const Service = mongoose.model('Service', ServiceSchema);
-export const Booking = mongoose.model('Booking', BookingSchema);
-export const Transaction = mongoose.model('Transaction', TransactionSchema);
-export const Review = mongoose.model('Review', ReviewSchema);
-export const Notification = mongoose.model('Notification', NotificationSchema);
-export const Subscription = mongoose.model('Subscription', SubscriptionSchema);
+export const User = mongoose.model<IUser>('User', UserSchema);
+export const ProviderProfile = mongoose.model<IProviderProfile>('ProviderProfile', ProviderProfileSchema);
+export const ServiceCategory = mongoose.model<IServiceCategory>('ServiceCategory', ServiceCategorySchema);
+export const Service = mongoose.model<IService>('Service', ServiceSchema);
+export const Booking = mongoose.model<IBooking>('Booking', BookingSchema);
+export const Transaction = mongoose.model<ITransaction>('Transaction', TransactionSchema);
+export const Review = mongoose.model<IReview>('Review', ReviewSchema);
+export const Notification = mongoose.model<INotification>('Notification', NotificationSchema);
+export const Subscription = mongoose.model<ISubscription>('Subscription', SubscriptionSchema);
