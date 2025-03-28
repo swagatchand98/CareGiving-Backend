@@ -1,8 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { 
   register, 
-  login, 
-  logout, 
+  login,
   forgotPassword, 
   resetPassword, 
   updatePassword,

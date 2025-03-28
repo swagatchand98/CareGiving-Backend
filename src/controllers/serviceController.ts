@@ -166,12 +166,11 @@ export const getServiceById = async (req: Request, res: Response, next: NextFunc
       });
 
     if (!service) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Service not found'
-      });
+        const error = new Error('Service not found');
+        (error as any).status = 404;
+        return next(error);
     }
-
+    
     res.status(200).json({
       status: 'success',
       data: { service }

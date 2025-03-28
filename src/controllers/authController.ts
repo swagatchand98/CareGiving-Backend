@@ -115,13 +115,6 @@ export const getCurrentUser = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-// @desc    Logout user
-// @route   POST /api/auth/logout
-export const logout = (req: Request, res: Response, next: NextFunction) => {
-  // In JWT-based auth, logout typically happens client-side by removing the token
-  res.json({ message: 'Logged out successfully' });
-};
-
 // @desc    Forgot password
 // @route   POST /api/auth/forgot-password
 export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
