@@ -43,9 +43,15 @@ class Server {
 
   private onListening(): void {
     const addr = this.server.address();
-    const bind = typeof addr === 'string'
-      ? `pipe ${addr}`
-      : `port ${addr?.port}`;
+    let bind = 'unknown address';
+    
+    if (addr === null) {
+      bind = `port ${config.PORT}`;
+    } else if (typeof addr === 'string') {
+      bind = `pipe ${addr}`;
+    } else {
+      bind = `port ${addr.port}`;
+    }
     
     console.log(`🚀 Server running on ${bind}`);
     console.log(`🌐 Environment: ${config.NODE_ENV}`);
@@ -61,8 +67,8 @@ class Server {
 
     // Start server
     this.server.listen(port);
-    this.server.on('error', this.onError);
-    this.server.on('listening', this.onListening);
+    this.server.on('error', this.onError.bind(this));
+    this.server.on('listening', this.onListening.bind(this));
 
     // Graceful shutdown
     process.on('SIGTERM', () => {
