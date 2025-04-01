@@ -4,9 +4,12 @@ import {
   login,
   forgotPassword, 
   resetPassword, 
-  updatePassword,
+  updateUserPassword,
   verifyEmail,
-  getCurrentUser
+  getCurrentUser,
+  getUserData,
+  getUserProfile,
+  updateUserProfile
 } from '../controllers/authController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 
@@ -26,13 +29,15 @@ const router = Router();
 router.post('/register', catchAsync(register));
 router.post('/login', catchAsync(login));
 router.post('/forgot-password', catchAsync(forgotPassword));
-router.post('/reset-password/:token', catchAsync(resetPassword));
-router.get('/verify-email/:token', catchAsync(verifyEmail));
+router.post('/reset-password', catchAsync(resetPassword));
 
 // Protected Routes
 router.use(protect); // All routes below this will require authentication
 
-router.get('/me', catchAsync(getCurrentUser));
-router.post('/update-password', catchAsync(updatePassword));
+router.get('/me', catchAsync(getUserData));
+router.post('/update-password', catchAsync(updateUserPassword));
+router.post('/verify-email', catchAsync(verifyEmail));
+router.get('/profile', catchAsync(getUserProfile));
+router.put('/profile', catchAsync(updateUserProfile));
 
 export default router;

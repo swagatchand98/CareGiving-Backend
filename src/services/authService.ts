@@ -1,44 +1,5 @@
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import { auth } from '../config/firebase-admin';
 import { User } from '../models/db';
-import { config } from '../config/env';
-
-/**
- * Generate JWT token for user authentication
- * @param userId - The user ID to include in the token
- * @returns JWT token string
- */
-export const generateToken = (userId: string): string => {
-  if (!config.JWT_SECRET) {
-    throw new Error('JWT_SECRET is not defined');
-  }
-  return jwt.sign({ id: userId }, config.JWT_SECRET, {
-    expiresIn: '30d'
-  });
-};
-
-/**
- * Hash a password using bcrypt
- * @param password - Plain text password
- * @returns Hashed password
- */
-export const hashPassword = async (password: string): Promise<string> => {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
-};
-
-/**
- * Verify a password against a hashed password
- * @param plainPassword - Plain text password
- * @param hashedPassword - Hashed password to compare against
- * @returns Boolean indicating if passwords match
- */
-export const verifyPassword = async (
-  plainPassword: string, 
-  hashedPassword: string
-): Promise<boolean> => {
-  return bcrypt.compare(plainPassword, hashedPassword);
-};
 
 /**
  * Find a user by email
@@ -47,6 +8,15 @@ export const verifyPassword = async (
  */
 export const findUserByEmail = async (email: string) => {
   return User.findOne({ email });
+};
+
+/**
+ * Find a user by Firebase UID
+ * @param firebaseUid - Firebase user ID
+ * @returns User document or null if not found
+ */
+export const findUserByFirebaseUid = async (firebaseUid: string) => {
+  return User.findOne({ firebaseUid }).select('-password');
 };
 
 /**
@@ -60,69 +30,80 @@ export const findUserById = async (id: string) => {
 
 /**
  * Create a new user
- * @param userData - User data including email, password, firstName, lastName
+ * @param userData - User data including email, firebaseUid, firstName, lastName
  * @returns Created user document
  */
 export const createUser = async (userData: {
   email: string;
-  password: string;
+  firebaseUid: string;
   firstName: string;
   lastName: string;
   role?: string;
 }) => {
-  // Hash password
-  const hashedPassword = await hashPassword(userData.password);
-  
-  // Create user
+  // Create user in our database
   return User.create({
     ...userData,
-    password: hashedPassword
+    role: userData.role || 'user'
   });
 };
 
 /**
- * Generate a password reset token
- * @param userId - User ID
- * @returns Reset token
+ * Generate a custom token for a user
+ * @param firebaseUid - Firebase user ID
+ * @returns Custom token
  */
-export const generatePasswordResetToken = (userId: string): string => {
-  if (!config.JWT_SECRET) {
-    throw new Error('JWT_SECRET is not defined');
-  }
-  return jwt.sign({ id: userId }, config.JWT_SECRET, {
-    expiresIn: '1h'
-  });
+export const generateCustomToken = async (firebaseUid: string): Promise<string> => {
+  return auth.createCustomToken(firebaseUid);
 };
 
 /**
- * Verify a token (for password reset or email verification)
- * @param token - JWT token
- * @returns Decoded token payload or null if invalid
+ * Verify an ID token
+ * @param idToken - Firebase ID token
+ * @returns Decoded token or null if invalid
  */
-export const verifyToken = (token: string): { id: string } | null => {
+export const verifyIdToken = async (idToken: string) => {
   try {
-    if (!config.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined');
-    }
-    return jwt.verify(token, config.JWT_SECRET) as { id: string };
+    return await auth.verifyIdToken(idToken);
   } catch (error) {
     return null;
   }
 };
 
 /**
- * Update user password
- * @param userId - User ID
- * @param newPassword - New password (plain text)
- * @returns Updated user document
+ * Set custom claims for a user
+ * @param firebaseUid - Firebase user ID
+ * @param claims - Custom claims to set
  */
-export const updateUserPassword = async (userId: string, newPassword: string) => {
-  const hashedPassword = await hashPassword(newPassword);
-  return User.findByIdAndUpdate(
-    userId,
-    { password: hashedPassword },
-    { new: true }
-  ).select('-password');
+export const setCustomClaims = async (firebaseUid: string, claims: object) => {
+  return auth.setCustomUserClaims(firebaseUid, claims);
+};
+
+/**
+ * Generate an email verification link
+ * @param email - User email
+ * @returns Email verification link
+ */
+export const generateEmailVerificationLink = async (email: string) => {
+  return auth.generateEmailVerificationLink(email);
+};
+
+/**
+ * Generate a password reset link
+ * @param email - User email
+ * @returns Password reset link
+ */
+export const generatePasswordResetLink = async (email: string) => {
+  return auth.generatePasswordResetLink(email);
+};
+
+/**
+ * Update user in Firebase
+ * @param firebaseUid - Firebase user ID
+ * @param userData - User data to update
+ * @returns Updated user record
+ */
+export const updateFirebaseUser = async (firebaseUid: string, userData: any) => {
+  return auth.updateUser(firebaseUid, userData);
 };
 
 /**
@@ -137,4 +118,16 @@ export const updateVerificationStatus = async (userId: string, status: 'pending'
     { verificationStatus: status },
     { new: true }
   ).select('-password');
+};
+
+/**
+ * Delete a user
+ * @param firebaseUid - Firebase user ID
+ */
+export const deleteUser = async (firebaseUid: string) => {
+  // Delete user from Firebase
+  await auth.deleteUser(firebaseUid);
+  
+  // Delete user from our database
+  return User.findOneAndDelete({ firebaseUid });
 };
