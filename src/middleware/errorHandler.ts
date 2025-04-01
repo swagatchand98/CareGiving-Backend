@@ -69,21 +69,45 @@ const errorHandler = (
     };
   }
 
-  // JWT Authentication Error
-  if (err.name === 'JsonWebTokenError') {
+  // Firebase Authentication Errors
+  if (err.name === 'FirebaseAuthError' || (err as any).code?.startsWith('auth/')) {
+    const code = (err as any).code;
+    let message = 'Authentication failed';
+    
+    // Handle specific Firebase Auth error codes
+    switch (code) {
+      case 'auth/id-token-expired':
+        message = 'Your token has expired. Please log in again';
+        break;
+      case 'auth/id-token-revoked':
+        message = 'Your token has been revoked. Please log in again';
+        break;
+      case 'auth/invalid-id-token':
+        message = 'Invalid token. Please log in again';
+        break;
+      case 'auth/user-disabled':
+        message = 'Your account has been disabled';
+        break;
+      case 'auth/user-not-found':
+        message = 'User not found';
+        break;
+      case 'auth/invalid-email':
+        message = 'Invalid email format';
+        break;
+      case 'auth/email-already-exists':
+        message = 'Email already in use';
+        break;
+      case 'auth/invalid-password':
+        message = 'Password must be at least 6 characters';
+        break;
+      default:
+        message = err.message || 'Authentication failed';
+    }
+    
     error = {
       status: 'fail',
       statusCode: 401,
-      message: 'Invalid token. Please log in again'
-    };
-  }
-
-  // JWT Expired Error
-  if (err.name === 'TokenExpiredError') {
-    error = {
-      status: 'fail',
-      statusCode: 401,
-      message: 'Your token has expired. Please log in again'
+      message
     };
   }
 

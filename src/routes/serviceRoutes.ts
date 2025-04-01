@@ -7,7 +7,9 @@ import {
   updateService, 
   deleteService,
   searchServices,
-  getCategoryServices
+  getCategoryServices,
+  getServiceCategories,
+  getServiceCategoryById
 } from '../controllers/serviceController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 import { catchAsync } from '../middleware/errorHandler';
@@ -18,6 +20,8 @@ const router = Router();
 // Public Routes
 router.get('/', catchAsync(getServices));
 router.get('/search', catchAsync(searchServices));
+router.get('/categories', catchAsync(getServiceCategories));
+router.get('/categories/:id', catchAsync(getServiceCategoryById));
 router.get('/category/:categoryId', catchAsync(getCategoryServices));
 router.get('/:id', catchAsync(getServiceById));
 
