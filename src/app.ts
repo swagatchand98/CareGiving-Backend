@@ -11,6 +11,7 @@ import bookingRoutes from './routes/bookingRoutes';
 import adminRoutes from './routes/adminRoutes';
 import { connectDatabase } from './config/database';
 import { loadEnvironmentVariables } from './config/env';
+import './config/firebase-admin'; // Initialize Firebase Admin SDK
 
 class App {
   public express: Express;
@@ -37,6 +38,9 @@ class App {
     this.express.use(express.json({ limit: '10kb' }));
     this.express.use(express.urlencoded({ extended: true }));
     this.express.use(compression());
+    
+    // Fix JSON response formatting
+    this.express.set('json spaces', 2);
 
     // Data sanitization against NoSQL query injection
     this.express.use(mongoSanitize());
@@ -91,6 +95,10 @@ class App {
       // Connect to database
       await connectDatabase();
       console.log('✅ Database connection successful');
+      
+      // Ensure default service categories exist
+      const { ServiceCategory } = require('./models/db');
+      await ServiceCategory.ensureDefaultCategories();
     } catch (error) {
       console.error('❌ Database connection failed:', error);
       process.exit(1);
