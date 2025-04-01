@@ -58,6 +58,19 @@ export const createService = async (req: Request, res: Response, next: NextFunct
       return next(error);
     }
 
+    // Validate that the selected tasks are from the predefined list for this category
+    if (req.body.includedServices && Array.isArray(req.body.includedServices)) {
+      const invalidTasks = req.body.includedServices.filter(
+        (task: string) => !category.tasks?.includes(task)
+      );
+
+      if (invalidTasks.length > 0) {
+        const error = new Error(`Invalid tasks selected: ${invalidTasks.join(', ')}`);
+        (error as any).status = 400;
+        return next(error);
+      }
+    }
+
     const serviceData = {
         providerId: userId,
         categoryId: req.body.categoryId,
@@ -71,7 +84,7 @@ export const createService = async (req: Request, res: Response, next: NextFunct
         duration: req.body.duration,
         additionalDetails: {
           specialRequirements: req.body.specialRequirements,
-          includedServices: req.body.includedServices
+          includedServices: req.body.includedServices || []
         }
     };
 
@@ -189,34 +202,70 @@ export const updateService = async (req: Request, res: Response, next: NextFunct
   try {
     const userId = (req as any).user._id;
 
-    const service = await Service.findOneAndUpdate(
-      { _id: req.params.id, providerId: userId },
-      {
-        title: req.body.title,
-        description: req.body.description,
-        categoryId: req.body.categoryId,
-        images: req.files ? (req.files as Express.Multer.File[]).map(file => file.path) : undefined,
-        price: {
-          amount: req.body.priceAmount,
-          type: req.body.priceType
-        },
-        duration: req.body.duration,
-        additionalDetails: {
-          specialRequirements: req.body.specialRequirements,
-          includedServices: req.body.includedServices
-        }
-      },
+    // First find the service to check if it exists and the user is authorized
+    const existingService = await Service.findOne({ _id: req.params.id, providerId: userId });
+    if (!existingService) {
+      const error = new Error('Service not found or you are not authorized to update');
+      (error as any).status = 404;
+      return next(error);
+    }
+
+    // If category is being updated, validate it
+    let category;
+    if (req.body.categoryId) {
+      category = await ServiceCategory.findById(req.body.categoryId);
+      if (!category) {
+        const error = new Error('Invalid service category');
+        (error as any).status = 400;
+        return next(error);
+      }
+    } else {
+      // Use existing category
+      category = await ServiceCategory.findById(existingService.categoryId);
+    }
+
+    // Validate that the selected tasks are from the predefined list for this category
+    if (req.body.includedServices && Array.isArray(req.body.includedServices)) {
+      const invalidTasks = req.body.includedServices.filter(
+        (task: string) => !category?.tasks?.includes(task)
+      );
+
+      if (invalidTasks.length > 0) {
+        const error = new Error(`Invalid tasks selected: ${invalidTasks.join(', ')}`);
+        (error as any).status = 400;
+        return next(error);
+      }
+    }
+
+    // Update the service
+    const updateData: any = {};
+    if (req.body.title) updateData.title = req.body.title;
+    if (req.body.description) updateData.description = req.body.description;
+    if (req.body.categoryId) updateData.categoryId = req.body.categoryId;
+    if (req.files) updateData.images = (req.files as Express.Multer.File[]).map(file => file.path);
+    
+    if (req.body.priceAmount || req.body.priceType) {
+      updateData.price = {
+        amount: req.body.priceAmount || existingService.price.amount,
+        type: req.body.priceType || existingService.price.type
+      };
+    }
+    
+    if (req.body.duration) updateData.duration = req.body.duration;
+    
+    updateData.additionalDetails = {
+      specialRequirements: req.body.specialRequirements || existingService.additionalDetails?.specialRequirements,
+      includedServices: req.body.includedServices || existingService.additionalDetails?.includedServices
+    };
+
+    const service = await Service.findByIdAndUpdate(
+      req.params.id,
+      updateData,
       { 
         new: true, 
         runValidators: true 
       }
     );
-
-    if (!service) {
-        const error = new Error('Service not found or you are not authorized to update');
-        (error as any).status = 404;
-        return next(error);
-    }
 
     res.status(200).json({
       status: 'success',
@@ -339,6 +388,49 @@ export const getCategoryServices = async (req: Request, res: Response, next: Nex
       status: 'success',
       results: services.length,
       data: { services }
+    });
+  } catch (error) {
+    handleError(error, next);
+  }
+};
+
+/**
+ * Get all service categories
+ * @route GET /services/categories
+ * @access Public
+ */
+export const getServiceCategories = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const categories = await ServiceCategory.find().sort({ name: 1 });
+
+    res.status(200).json({
+      status: 'success',
+      results: categories.length,
+      data: { categories }
+    });
+  } catch (error) {
+    handleError(error, next);
+  }
+};
+
+/**
+ * Get service category by ID with tasks
+ * @route GET /services/categories/:id
+ * @access Public
+ */
+export const getServiceCategoryById = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const category = await ServiceCategory.findById(req.params.id);
+
+    if (!category) {
+      const error = new Error('Service category not found');
+      (error as any).status = 404;
+      return next(error);
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { category }
     });
   } catch (error) {
     handleError(error, next);
