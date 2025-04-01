@@ -11,8 +11,8 @@ interface IAddress {
 
 export interface IUser extends Document {
   _id: Types.ObjectId;
+  firebaseUid: string;
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   role: 'user' | 'provider' | 'admin';
@@ -59,6 +59,7 @@ interface IServiceCategory extends Document {
   parentCategory?: mongoose.Types.ObjectId | null;
   description?: string;
   iconUrl?: string | null;
+  tasks?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -159,16 +160,17 @@ interface ISubscription extends Document {
 
 // User Schema
 const UserSchema: Schema = new Schema<IUser>({
+  firebaseUid: {
+    type: String,
+    required: true,
+    unique: true
+  },
   email: {
     type: String,
     required: true,
     unique: true,
     lowercase: true,
     trim: true
-  },
-  password: {
-    type: String,
-    required: true
   },
   firstName: {
     type: String,
@@ -306,6 +308,10 @@ const ServiceCategorySchema: Schema = new Schema<IServiceCategory>({
   iconUrl: {
     type: String,
     default: null
+  },
+  tasks: {
+    type: [String],
+    default: []
   }
 }, {
   timestamps: true
@@ -536,10 +542,109 @@ const SubscriptionSchema: Schema = new Schema<ISubscription>({
   endDate: Date
 });
 
+// Default service categories data
+const defaultServiceCategories = [
+  {
+    name: 'Companion Care',
+    description: 'For seniors or individuals who need social interaction and light assistance with daily activities.',
+    tasks: [
+      'Friendly companionship',
+      'Assistance with mobility (walking, light stretching)',
+      'Meal preparation',
+      'Light housekeeping',
+      'Grocery shopping & errands',
+      'Medication reminders',
+      'Transportation (to appointments, social outings, etc.)',
+      'Emotional support'
+    ]
+  },
+  {
+    name: 'Personal Care (Non-Medical Assistance)',
+    description: 'For individuals who need help with daily living tasks but do not require medical care.',
+    tasks: [
+      'Bathing & hygiene assistance',
+      'Dressing & grooming',
+      'Assistance with toileting',
+      'Mobility assistance (help getting out of bed, chair, etc.)',
+      'Help with eating & drinking',
+      'Incontinence care',
+      'Light exercises & movement support'
+    ]
+  },
+  {
+    name: 'Skilled Nursing Care (Medical Assistance)',
+    description: 'For individuals who need specialized care from licensed professionals.',
+    tasks: [
+      'Wound care & dressing changes',
+      'Administering injections & medications',
+      'IV therapy & tube feeding',
+      'Monitoring vital signs',
+      'Post-surgery care',
+      'Chronic disease management (diabetes, hypertension, etc.)'
+    ]
+  },
+  {
+    name: 'Alzheimer\'s & Dementia Care',
+    description: 'For individuals with memory-related conditions who need structured care.',
+    tasks: [
+      'Cognitive stimulation activities',
+      'Safety monitoring (prevent wandering, falls)',
+      'Personal care & hygiene assistance',
+      'Medication reminders & supervision',
+      'Emotional & behavioral support',
+      'Meal preparation & feeding assistance'
+    ]
+  },
+  {
+    name: 'Post-Hospitalization & Recovery Care',
+    description: 'For patients recovering from surgery, accidents, or major illnesses.',
+    tasks: [
+      'Assistance with mobility & transfers',
+      'Medication management',
+      'Wound care & dressing changes',
+      'Help with daily activities (bathing, dressing, toileting)',
+      'Meal prep & nutritional support',
+      'Physical therapy assistance (under supervision)'
+    ]
+  },
+  {
+    name: 'Disability & Special Needs Care',
+    description: 'For individuals with physical or developmental disabilities.',
+    tasks: [
+      'Assistance with daily activities (bathing, dressing, feeding)',
+      'Mobility support (wheelchair assistance, transfers)',
+      'Therapy exercises (as prescribed by specialists)',
+      'Communication support (for non-verbal individuals)',
+      'Emotional & social support'
+    ]
+  },
+  {
+    name: 'Pet Care',
+    description: 'For pet owners who need temporary assistance in caring for their pets.',
+    tasks: [
+      'Pet sitting (feeding, companionship, overnight care)',
+      'Dog walking (exercise, leash management, outdoor play)',
+      'Grooming (brushing, bathing, nail trimming)',
+      'Administering medication (for pets with medical needs)',
+      'Special needs pet care (mobility aid for elderly pets)'
+    ]
+  }
+];
+
+// Add static method to ServiceCategory schema to ensure default categories exist
+ServiceCategorySchema.statics.ensureDefaultCategories = async function() {
+  const count = await this.countDocuments();
+  if (count === 0) {
+    console.log('No service categories found. Creating default categories...');
+    await this.insertMany(defaultServiceCategories);
+    console.log(`Created ${defaultServiceCategories.length} default service categories`);
+  }
+};
+
 // Create Models
 export const User = mongoose.model<IUser>('User', UserSchema);
 export const ProviderProfile = mongoose.model<IProviderProfile>('ProviderProfile', ProviderProfileSchema);
-export const ServiceCategory = mongoose.model<IServiceCategory>('ServiceCategory', ServiceCategorySchema);
+export const ServiceCategory = mongoose.model<IServiceCategory & { ensureDefaultCategories: () => Promise<void> }>('ServiceCategory', ServiceCategorySchema);
 export const Service = mongoose.model<IService>('Service', ServiceSchema);
 export const Booking = mongoose.model<IBooking>('Booking', BookingSchema);
 export const Transaction = mongoose.model<ITransaction>('Transaction', TransactionSchema);
