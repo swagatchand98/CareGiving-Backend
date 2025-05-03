@@ -51,6 +51,7 @@ interface IProviderProfile extends Document {
   availability: IAvailability[];
   backgroundCheckVerified: boolean;
   languagesSpoken: string[];
+  documents?: string[];
 }
 
 // Service Category Interface
@@ -156,6 +157,36 @@ interface ISubscription extends Document {
   status: 'active' | 'cancelled' | 'past_due';
   startDate: Date;
   endDate?: Date;
+}
+
+// Wallet Interface
+interface IWalletTransaction {
+  amount: number;
+  type: 'credit' | 'debit';
+  description: string;
+  relatedEntityId?: mongoose.Types.ObjectId;
+  createdAt: Date;
+}
+
+interface IWallet extends Document {
+  userId: mongoose.Types.ObjectId;
+  balance: number;
+  transactions: IWalletTransaction[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// TimeSlot Interface
+interface ITimeSlot extends Document {
+  providerId: mongoose.Types.ObjectId;
+  serviceId: mongoose.Types.ObjectId;
+  date: Date;
+  startTime: string;
+  endTime: string;
+  isBooked: boolean;
+  bookingId?: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // User Schema
@@ -286,7 +317,11 @@ const ProviderProfileSchema: Schema = new Schema<IProviderProfile>({
     type: Boolean,
     default: false
   },
-  languagesSpoken: [String]
+  languagesSpoken: [String],
+  documents: {
+    type: [String],
+    default: []
+  }
 });
 
 // Service Category Schema
@@ -322,33 +357,39 @@ const ServiceSchema: Schema = new Schema<IService>({
   providerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    index: true // Add index for faster provider-specific queries
   },
   categoryId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ServiceCategory',
-    required: true
+    required: true,
+    index: true // Add index for faster category-specific queries
   },
   title: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
+    index: 'text' // Add text index for faster text search
   },
   description: {
     type: String,
-    required: true
+    required: true,
+    index: 'text' // Add text index for faster text search
   },
   images: [String],
   price: {
     amount: {
       type: Number,
       required: true,
-      min: 0
+      min: 0,
+      index: true // Add index for price filtering
     },
     type: {
       type: String,
       enum: ['hourly', 'fixed'],
-      required: true
+      required: true,
+      index: true // Add index for price type filtering
     }
   },
   duration: {
@@ -362,6 +403,10 @@ const ServiceSchema: Schema = new Schema<IService>({
 }, {
   timestamps: true
 });
+
+// Create compound indexes for common query patterns
+ServiceSchema.index({ providerId: 1, categoryId: 1 }); // For queries that filter by both provider and category
+ServiceSchema.index({ 'price.amount': 1, categoryId: 1 }); // For price range filtering within a category
 
 // Booking Schema
 const BookingSchema: Schema = new Schema<IBooking>({
@@ -641,6 +686,86 @@ ServiceCategorySchema.statics.ensureDefaultCategories = async function() {
   }
 };
 
+// Wallet Schema
+const WalletSchema: Schema = new Schema<IWallet>({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    unique: true
+  },
+  balance: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  transactions: [{
+    amount: {
+      type: Number,
+      required: true
+    },
+    type: {
+      type: String,
+      enum: ['credit', 'debit'],
+      required: true
+    },
+    description: {
+      type: String,
+      required: true
+    },
+    relatedEntityId: {
+      type: mongoose.Schema.Types.ObjectId
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }]
+}, {
+  timestamps: true
+});
+
+// TimeSlot Schema
+const TimeSlotSchema: Schema = new Schema<ITimeSlot>({
+  providerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  serviceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Service',
+    required: true
+  },
+  date: {
+    type: Date,
+    required: true
+  },
+  startTime: {
+    type: String,
+    required: true,
+    match: /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+  },
+  endTime: {
+    type: String,
+    required: true,
+    match: /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+  },
+  isBooked: {
+    type: Boolean,
+    default: false
+  },
+  bookingId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Booking'
+  }
+}, {
+  timestamps: true
+});
+
+// Create compound index for unique time slots
+TimeSlotSchema.index({ providerId: 1, date: 1, startTime: 1, endTime: 1 }, { unique: true });
+
 // Create Models
 export const User = mongoose.model<IUser>('User', UserSchema);
 export const ProviderProfile = mongoose.model<IProviderProfile>('ProviderProfile', ProviderProfileSchema);
@@ -651,3 +776,5 @@ export const Transaction = mongoose.model<ITransaction>('Transaction', Transacti
 export const Review = mongoose.model<IReview>('Review', ReviewSchema);
 export const Notification = mongoose.model<INotification>('Notification', NotificationSchema);
 export const Subscription = mongoose.model<ISubscription>('Subscription', SubscriptionSchema);
+export const Wallet = mongoose.model<IWallet>('Wallet', WalletSchema);
+export const TimeSlot = mongoose.model<ITimeSlot>('TimeSlot', TimeSlotSchema);
