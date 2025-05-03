@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { User, ProviderProfile } from '../models/db';
+import { User, ProviderProfile, Service } from '../models/db';
+import mongoose from 'mongoose';
 import { createError } from '../middleware/errorHandler';
 import * as admin from 'firebase-admin';
 
@@ -283,6 +284,52 @@ export const getOnboardingStatus = async (req: Request, res: Response, next: Nex
       data: {
         onboardingStatus
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get provider's services
+ * @route   GET /api/providers/services
+ * @access  Private (Provider only)
+ */
+export const getProviderServices = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Ensure user is authenticated and is a provider
+    if (!req.user) {
+      return next(createError.unauthorized('User not authenticated'));
+    }
+
+    if (req.user.role !== 'provider') {
+      return next(createError.forbidden('Only providers can access this endpoint'));
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    // Get services for this provider
+    const services = await Service.find({ providerId: req.user._id })
+      .populate({
+        path: 'categoryId',
+        model: 'ServiceCategory',
+        select: 'name description'
+      })
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const total = await Service.countDocuments({ providerId: req.user._id });
+
+    res.status(200).json({
+      status: 'success',
+      results: services.length,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      data: { services }
     });
   } catch (error) {
     next(error);
