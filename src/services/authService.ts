@@ -1,5 +1,6 @@
 import { auth } from '../config/firebase-admin';
-import { User } from '../models/db';
+import { User, ProviderProfile } from '../models/db';
+import { Types } from 'mongoose';
 
 /**
  * Find a user by email
@@ -45,6 +46,79 @@ export const createUser = async (userData: {
     ...userData,
     role: userData.role || 'user'
   });
+};
+
+/**
+ * Create a new provider
+ * @param userData - User data including email, firebaseUid, firstName, lastName
+ * @param providerData - Provider profile data
+ * @returns Created user document with provider profile
+ */
+export const createProvider = async (
+  userData: {
+    email: string;
+    firebaseUid: string;
+    firstName: string;
+    lastName: string;
+  },
+  providerData: {
+    bio?: string;
+    serviceCategories?: Types.ObjectId[];
+    certifications?: string[];
+    yearsOfExperience?: number;
+    hourlyRate?: number;
+    serviceAreas?: { city: string; state: string }[];
+    languagesSpoken?: string[];
+  }
+) => {
+  // Create user with provider role
+  const user = await User.create({
+    ...userData,
+    role: 'provider',
+    verificationStatus: 'pending' // Providers need verification
+  });
+
+  // Create provider profile
+  const providerProfile = await ProviderProfile.create({
+    userId: user._id,
+    serviceCategories: providerData.serviceCategories || [],
+    bio: providerData.bio || '',
+    certifications: providerData.certifications || [],
+    yearsOfExperience: providerData.yearsOfExperience || 0,
+    hourlyRate: providerData.hourlyRate || 0,
+    serviceAreas: providerData.serviceAreas || [],
+    availability: [], // Default empty availability
+    backgroundCheckVerified: false, // Default to false until verified
+    languagesSpoken: providerData.languagesSpoken || []
+  });
+
+  // Set custom claims for role-based access
+  await auth.setCustomUserClaims(userData.firebaseUid, { role: 'provider' });
+
+  return { user, providerProfile };
+};
+
+/**
+ * Find provider profile by user ID
+ * @param userId - User ID
+ * @returns Provider profile document or null if not found
+ */
+export const findProviderProfileByUserId = async (userId: string) => {
+  return ProviderProfile.findOne({ userId });
+};
+
+/**
+ * Update provider profile
+ * @param userId - User ID
+ * @param updateData - Data to update
+ * @returns Updated provider profile
+ */
+export const updateProviderProfile = async (userId: string, updateData: any) => {
+  return ProviderProfile.findOneAndUpdate(
+    { userId },
+    updateData,
+    { new: true }
+  );
 };
 
 /**
@@ -128,6 +202,18 @@ export const deleteUser = async (firebaseUid: string) => {
   // Delete user from Firebase
   await auth.deleteUser(firebaseUid);
   
-  // Delete user from our database
-  return User.findOneAndDelete({ firebaseUid });
+  // Find user in our database
+  const user = await User.findOne({ firebaseUid });
+  
+  if (user) {
+    // If user is a provider, delete provider profile
+    if (user.role === 'provider') {
+      await ProviderProfile.findOneAndDelete({ userId: user._id });
+    }
+    
+    // Delete user from our database
+    await User.findOneAndDelete({ firebaseUid });
+  }
+  
+  return true;
 };
