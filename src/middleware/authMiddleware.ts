@@ -16,8 +16,8 @@ declare global {
 }
 
 /**
- * Authentication middleware using Firebase Admin SDK
- * Verifies the token and attaches the user to the request
+ * Authentication middleware for the hybrid approach
+ * Verifies either Firebase ID tokens or our custom tokens
  */
 export const protect = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   let token;
@@ -45,6 +45,18 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
         // Set user in request
         req.user = user;
         
+        // Also set decodedToken with minimal required properties
+        req.decodedToken = {
+          uid: firebaseUid,
+          // Add other required properties with default values
+          auth_time: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+          iat: Math.floor(Date.now() / 1000),
+          sub: firebaseUid,
+          email: user.email || '',
+          email_verified: false
+        } as admin.auth.DecodedIdToken;
+        
         next();
         return;
       }
@@ -66,6 +78,18 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
         // Set user in request
         req.user = user;
         
+        // Also set decodedToken with minimal required properties
+        req.decodedToken = {
+          uid: uid,
+          // Add other required properties with default values
+          auth_time: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+          iat: Math.floor(Date.now() / 1000),
+          sub: uid,
+          email: user.email || '',
+          email_verified: false
+        } as admin.auth.DecodedIdToken;
+        
         next();
         return;
       }
@@ -83,11 +107,33 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
         }
         
         // Find user in our database
-        const user = await User.findOne({ firebaseUid: decodedToken.uid }).select('-password');
+        let user = await User.findOne({ firebaseUid: decodedToken.uid }).select('-password');
 
         if (!user) {
-          res.status(401).json({ message: 'User not found in database' });
-          return;
+          // If user doesn't exist in our database but exists in Firebase,
+          // create a new user record in our database
+          const firebaseUser = await auth.getUser(decodedToken.uid);
+          
+          // Extract name parts from displayName or use email as fallback
+          let firstName = 'User';
+          let lastName = '';
+          
+          if (firebaseUser.displayName) {
+            const nameParts = firebaseUser.displayName.split(' ');
+            firstName = nameParts[0] || 'User';
+            lastName = nameParts.slice(1).join(' ') || '';
+          }
+          
+          user = await User.create({
+            firebaseUid: decodedToken.uid,
+            email: firebaseUser.email || '',
+            firstName,
+            lastName,
+            role: 'user', // Default role
+            verificationStatus: firebaseUser.emailVerified ? 'verified' : 'pending'
+          });
+          
+          console.log('Created new user from Firebase authentication in middleware:', user.email);
         }
 
         // Set user and decoded token in request
@@ -97,22 +143,6 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
         next();
       } catch (verifyError) {
         console.error('ID token verification error:', verifyError);
-        
-        // Try to use the token directly as a Firebase UID (last resort fallback)
-        try {
-          // Find user in our database
-          const user = await User.findOne({ firebaseUid: token }).select('-password');
-
-          if (user) {
-            // Set user in request
-            req.user = user;
-            next();
-            return;
-          }
-        } catch (fallbackError) {
-          console.error('Fallback authentication error:', fallbackError);
-        }
-        
         res.status(401).json({ message: 'Not authorized, invalid token' });
         return;
       }
