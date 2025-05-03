@@ -17,7 +17,7 @@ const handleError = (error: unknown, next: NextFunction) => {
     if (error instanceof mongoose.Error.CastError) {
       // Mongoose cast error (e.g., invalid ID)
       const castError = new Error('Invalid data format');
-      (castError as any).status = 400;
+      (castError as any).status = 400;  
       return next(castError);
     }
   
@@ -129,17 +129,28 @@ export const getServices = async (req: Request, res: Response, next: NextFunctio
       query['price.type'] = req.query.priceType;
     }
 
-    const services = await Service.find(query)
+    // Define projection to limit fields returned
+    const projection = {
+      title: 1,
+      description: 1,
+      price: 1,
+      images: { $slice: 1 }, // Only return the first image
+      duration: 1,
+      createdAt: 1
+    };
+
+    const services = await Service.find(query, projection)
       .populate({
         path: 'categoryId',
         model: 'ServiceCategory',
-        select: 'name description'
+        select: 'name description' // Only select necessary fields
       })
       .populate({
         path: 'providerId',
         model: 'User',
-        select: 'firstName lastName profilePicture'
+        select: 'firstName lastName profilePicture' // Only select necessary fields
       })
+      .lean() // Convert to plain JavaScript objects for better performance
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
@@ -341,7 +352,17 @@ export const searchServices = async (req: Request, res: Response, next: NextFunc
       searchConditions['price.type'] = priceType;
     }
 
-    const services = await Service.find(searchConditions)
+    // Define projection to limit fields returned
+    const projection = {
+      title: 1,
+      description: 1,
+      price: 1,
+      images: { $slice: 1 }, // Only return the first image
+      duration: 1,
+      createdAt: 1
+    };
+
+    const services = await Service.find(searchConditions, projection)
       .populate({
         path: 'categoryId',
         model: 'ServiceCategory',
@@ -351,7 +372,9 @@ export const searchServices = async (req: Request, res: Response, next: NextFunc
         path: 'providerId',
         model: 'User',
         select: 'firstName lastName profilePicture'
-      });
+      })
+      .lean() // Convert to plain JavaScript objects for better performance
+      .limit(20); // Limit results for better performance
 
     res.status(200).json({
       status: 'success',
@@ -372,7 +395,17 @@ export const getCategoryServices = async (req: Request, res: Response, next: Nex
   try {
     const { categoryId } = req.params;
 
-    const services = await Service.find({ categoryId })
+    // Define projection to limit fields returned
+    const projection = {
+      title: 1,
+      description: 1,
+      price: 1,
+      images: { $slice: 1 }, // Only return the first image
+      duration: 1,
+      createdAt: 1
+    };
+
+    const services = await Service.find({ categoryId }, projection)
       .populate({
         path: 'categoryId',
         model: 'ServiceCategory',
@@ -382,7 +415,9 @@ export const getCategoryServices = async (req: Request, res: Response, next: Nex
         path: 'providerId',
         model: 'User',
         select: 'firstName lastName profilePicture'
-      });
+      })
+      .lean() // Convert to plain JavaScript objects for better performance
+      .limit(20); // Limit results for better performance
 
     res.status(200).json({
       status: 'success',
