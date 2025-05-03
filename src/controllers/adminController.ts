@@ -1,56 +1,19 @@
 import { Request, Response, NextFunction } from 'express';
+import { User, Service, Booking, ServiceCategory } from '../models/db';
 import mongoose from 'mongoose';
-import { User, Service, Booking, ServiceCategory, Transaction } from '../models/db';
-import { AppError, createError } from '../middleware/errorHandler';
 
 /**
- * @desc    Get all users with pagination and filtering
- * @route   GET /api/admin/users
- * @access  Private (Admin only)
+ * @desc    Get all users
+ * @route   GET /api/v1/admin/users
+ * @access  Private/Admin
  */
 export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
-
-    const query: any = {};
+    const users = await User.find().select('-password');
     
-    // Filter by role
-    if (req.query.role) {
-      query.role = req.query.role;
-    }
-
-    // Filter by verification status
-    if (req.query.verificationStatus) {
-      query.verificationStatus = req.query.verificationStatus;
-    }
-
-    // Search by name or email
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search as string, 'i');
-      query.$or = [
-        { firstName: searchRegex },
-        { lastName: searchRegex },
-        { email: searchRegex }
-      ];
-    }
-
-    const users = await User.find(query)
-      .select('-password')
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
-
-    const total = await User.countDocuments(query);
-
-    res.status(200).json({
-      status: 'success',
-      results: users.length,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-      data: { users }
+    res.json({
+      count: users.length,
+      users
     });
   } catch (error) {
     next(error);
@@ -59,79 +22,49 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
 
 /**
  * @desc    Get user by ID
- * @route   GET /api/admin/users/:id
- * @access  Private (Admin only)
+ * @route   GET /api/v1/admin/users/:id
+ * @access  Private/Admin
  */
 export const getUserById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
-
+    
     if (!user) {
-      return next(createError.notFound('User not found'));
+      return res.status(404).json({ message: 'User not found' });
     }
-
-    // Get user's bookings if they exist
-    const bookings = await Booking.find({ userId: user._id })
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    // Get user's services if they are a provider
-    let services: any[] = [];
-    if (user.role === 'provider') {
-      services = await Service.find({ providerId: user._id })
-        .sort({ createdAt: -1 })
-        .limit(5);
-    }
-
-    res.status(200).json({
-      status: 'success',
-      data: { 
-        user,
-        bookings,
-        services
-      }
-    });
+    
+    res.json(user);
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * @desc    Update user status (verification, role, etc.)
- * @route   PATCH /api/admin/users/:id/status
- * @access  Private (Admin only)
+ * @desc    Update user status
+ * @route   PATCH /api/v1/admin/users/:id/status
+ * @access  Private/Admin
  */
 export const updateUserStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { verificationStatus, role } = req.body;
+    const { status } = req.body;
     
-    // Validate input
-    if (!verificationStatus && !role) {
-      return next(createError.badRequest('Please provide verificationStatus or role to update'));
+    if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
     }
-
-    // Build update object
-    const updateData: any = {};
-    if (verificationStatus) {
-      updateData.verificationStatus = verificationStatus;
-    }
-    if (role) {
-      updateData.role = role;
-    }
-
+    
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      updateData,
-      { new: true, runValidators: true }
+      { status },
+      { new: true }
     ).select('-password');
-
+    
     if (!user) {
-      return next(createError.notFound('User not found'));
+      return res.status(404).json({ message: 'User not found' });
     }
-
-    res.status(200).json({
-      status: 'success',
-      data: { user }
+    
+    res.json({
+      message: `User status updated to ${status}`,
+      user
     });
   } catch (error) {
     next(error);
@@ -140,8 +73,8 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
 
 /**
  * @desc    Suspend a user
- * @route   POST /api/admin/users/:id/suspend
- * @access  Private (Admin only)
+ * @route   POST /api/v1/admin/users/:id/suspend
+ * @access  Private/Admin
  */
 export const suspendUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -150,32 +83,32 @@ export const suspendUser = async (req: Request, res: Response, next: NextFunctio
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { 
-        verificationStatus: 'rejected',
-        suspensionReason: reason || 'Suspended by admin'
+        status: 'suspended',
+        suspensionReason: reason || 'Suspended by admin',
+        suspendedAt: new Date()
       },
-      { new: true, runValidators: true }
+      { new: true }
     ).select('-password');
-
+    
     if (!user) {
-      return next(createError.notFound('User not found'));
+      return res.status(404).json({ message: 'User not found' });
     }
-
-    // Cancel any pending bookings
+    
+    // Cancel any active bookings
     await Booking.updateMany(
       { 
-        $or: [
-          { userId: user._id },
-          { providerId: user._id }
-        ],
-        status: 'pending'
+        user: user._id,
+        status: { $in: ['pending', 'confirmed'] }
       },
-      { status: 'cancelled' }
+      { 
+        status: 'cancelled',
+        cancellationReason: 'User account suspended'
+      }
     );
-
-    res.status(200).json({
-      status: 'success',
+    
+    res.json({
       message: 'User suspended successfully',
-      data: { user }
+      user
     });
   } catch (error) {
     next(error);
@@ -184,28 +117,28 @@ export const suspendUser = async (req: Request, res: Response, next: NextFunctio
 
 /**
  * @desc    Activate a suspended user
- * @route   POST /api/admin/users/:id/activate
- * @access  Private (Admin only)
+ * @route   POST /api/v1/admin/users/:id/activate
+ * @access  Private/Admin
  */
 export const activateUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { 
-        verificationStatus: 'verified',
-        $unset: { suspensionReason: 1 }
+        status: 'active',
+        suspensionReason: null,
+        suspendedAt: null
       },
-      { new: true, runValidators: true }
+      { new: true }
     ).select('-password');
-
+    
     if (!user) {
-      return next(createError.notFound('User not found'));
+      return res.status(404).json({ message: 'User not found' });
     }
-
-    res.status(200).json({
-      status: 'success',
+    
+    res.json({
       message: 'User activated successfully',
-      data: { user }
+      user
     });
   } catch (error) {
     next(error);
@@ -213,68 +146,19 @@ export const activateUser = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
- * @desc    Get all services with pagination and filtering
- * @route   GET /api/admin/services
- * @access  Private (Admin only)
+ * @desc    Get all services
+ * @route   GET /api/v1/admin/services
+ * @access  Private/Admin
  */
 export const getAllServices = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
-
-    const query: any = {};
+    const services = await Service.find()
+      .populate('category', 'name')
+      .populate('provider', 'firstName lastName email');
     
-    // Filter by category
-    if (req.query.categoryId) {
-      query.categoryId = new mongoose.Types.ObjectId(req.query.categoryId as string);
-    }
-
-    // Filter by provider
-    if (req.query.providerId) {
-      query.providerId = new mongoose.Types.ObjectId(req.query.providerId as string);
-    }
-
-    // Filter by price range
-    if (req.query.minPrice || req.query.maxPrice) {
-      query['price.amount'] = {};
-      if (req.query.minPrice) query['price.amount'].$gte = Number(req.query.minPrice);
-      if (req.query.maxPrice) query['price.amount'].$lte = Number(req.query.maxPrice);
-    }
-
-    // Search by title or description
-    if (req.query.search) {
-      const searchRegex = new RegExp(req.query.search as string, 'i');
-      query.$or = [
-        { title: searchRegex },
-        { description: searchRegex }
-      ];
-    }
-
-    const services = await Service.find(query)
-      .populate({
-        path: 'categoryId',
-        model: 'ServiceCategory',
-        select: 'name description'
-      })
-      .populate({
-        path: 'providerId',
-        model: 'User',
-        select: 'firstName lastName email'
-      })
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 });
-
-    const total = await Service.countDocuments(query);
-
-    res.status(200).json({
-      status: 'success',
-      results: services.length,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-      data: { services }
+    res.json({
+      count: services.length,
+      services
     });
   } catch (error) {
     next(error);
@@ -283,97 +167,77 @@ export const getAllServices = async (req: Request, res: Response, next: NextFunc
 
 /**
  * @desc    Manage service categories (create, update, delete)
- * @route   POST /api/admin/service-categories
- * @access  Private (Admin only)
+ * @route   POST /api/v1/admin/service-categories
+ * @access  Private/Admin
  */
 export const manageServiceCategories = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { action, categoryId, name, description, parentCategory, iconUrl } = req.body;
-
-    if (!action) {
-      return next(createError.badRequest('Action is required (create, update, or delete)'));
-    }
-
-    let category;
-
+    const { action, categoryId, name, description, icon } = req.body;
+    
     switch (action) {
       case 'create':
         if (!name) {
-          return next(createError.badRequest('Category name is required'));
+          return res.status(400).json({ message: 'Category name is required' });
         }
-
-        category = await ServiceCategory.create({
+        
+        const newCategory = await ServiceCategory.create({
           name,
           description,
-          parentCategory: parentCategory || null,
-          iconUrl
+          icon
         });
-
-        res.status(201).json({
-          status: 'success',
+        
+        return res.status(201).json({
           message: 'Category created successfully',
-          data: { category }
+          category: newCategory
         });
-        break;
-
+        
       case 'update':
         if (!categoryId) {
-          return next(createError.badRequest('Category ID is required for update'));
+          return res.status(400).json({ message: 'Category ID is required' });
         }
-
-        category = await ServiceCategory.findByIdAndUpdate(
+        
+        const updatedCategory = await ServiceCategory.findByIdAndUpdate(
           categoryId,
-          {
-            name,
-            description,
-            parentCategory,
-            iconUrl
-          },
-          { new: true, runValidators: true }
+          { name, description, icon },
+          { new: true }
         );
-
-        if (!category) {
-          return next(createError.notFound('Category not found'));
+        
+        if (!updatedCategory) {
+          return res.status(404).json({ message: 'Category not found' });
         }
-
-        res.status(200).json({
-          status: 'success',
+        
+        return res.json({
           message: 'Category updated successfully',
-          data: { category }
+          category: updatedCategory
         });
-        break;
-
+        
       case 'delete':
         if (!categoryId) {
-          return next(createError.badRequest('Category ID is required for deletion'));
+          return res.status(400).json({ message: 'Category ID is required' });
         }
-
-        // Check if category has services
-        const servicesCount = await Service.countDocuments({ categoryId });
-        if (servicesCount > 0) {
-          return next(createError.badRequest(`Cannot delete category with ${servicesCount} associated services`));
+        
+        // Check if category is in use
+        const servicesUsingCategory = await Service.countDocuments({ category: categoryId });
+        
+        if (servicesUsingCategory > 0) {
+          return res.status(400).json({ 
+            message: 'Cannot delete category that is in use by services',
+            servicesCount: servicesUsingCategory
+          });
         }
-
-        // Check if category has child categories
-        const childCategoriesCount = await ServiceCategory.countDocuments({ parentCategory: categoryId });
-        if (childCategoriesCount > 0) {
-          return next(createError.badRequest(`Cannot delete category with ${childCategoriesCount} child categories`));
+        
+        const deletedCategory = await ServiceCategory.findByIdAndDelete(categoryId);
+        
+        if (!deletedCategory) {
+          return res.status(404).json({ message: 'Category not found' });
         }
-
-        category = await ServiceCategory.findByIdAndDelete(categoryId);
-
-        if (!category) {
-          return next(createError.notFound('Category not found'));
-        }
-
-        res.status(200).json({
-          status: 'success',
+        
+        return res.json({
           message: 'Category deleted successfully'
         });
-        break;
-
+        
       default:
-        return next(createError.badRequest('Invalid action. Use create, update, or delete'));
+        return res.status(400).json({ message: 'Invalid action' });
     }
   } catch (error) {
     next(error);
@@ -381,69 +245,49 @@ export const manageServiceCategories = async (req: Request, res: Response, next:
 };
 
 /**
- * @desc    Get all bookings with pagination and filtering
- * @route   GET /api/admin/bookings
- * @access  Private (Admin only)
+ * @desc    Get all bookings
+ * @route   GET /api/v1/admin/bookings
+ * @access  Private/Admin
  */
 export const getAllBookings = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
-
-    const query: any = {};
+    const { status, startDate, endDate, userId, serviceId } = req.query;
     
-    // Filter by status
-    if (req.query.status) {
-      query.status = req.query.status;
+    // Build filter object
+    const filter: any = {};
+    
+    if (status) {
+      filter.status = status;
     }
-
-    // Filter by user
-    if (req.query.userId) {
-      query.userId = new mongoose.Types.ObjectId(req.query.userId as string);
+    
+    if (startDate && endDate) {
+      filter.bookingDate = {
+        $gte: new Date(startDate as string),
+        $lte: new Date(endDate as string)
+      };
+    } else if (startDate) {
+      filter.bookingDate = { $gte: new Date(startDate as string) };
+    } else if (endDate) {
+      filter.bookingDate = { $lte: new Date(endDate as string) };
     }
-
-    // Filter by provider
-    if (req.query.providerId) {
-      query.providerId = new mongoose.Types.ObjectId(req.query.providerId as string);
+    
+    if (userId && mongoose.Types.ObjectId.isValid(userId as string)) {
+      filter.user = userId;
     }
-
-    // Filter by date range
-    if (req.query.startDate || req.query.endDate) {
-      query.dateTime = {};
-      if (req.query.startDate) query.dateTime.$gte = new Date(req.query.startDate as string);
-      if (req.query.endDate) query.dateTime.$lte = new Date(req.query.endDate as string);
+    
+    if (serviceId && mongoose.Types.ObjectId.isValid(serviceId as string)) {
+      filter.service = serviceId;
     }
-
-    const bookings = await Booking.find(query)
-      .populate({
-        path: 'serviceId',
-        model: 'Service',
-        select: 'title price'
-      })
-      .populate({
-        path: 'userId',
-        model: 'User',
-        select: 'firstName lastName email'
-      })
-      .populate({
-        path: 'providerId',
-        model: 'User',
-        select: 'firstName lastName email'
-      })
-      .skip(skip)
-      .limit(limit)
-      .sort({ dateTime: -1 });
-
-    const total = await Booking.countDocuments(query);
-
-    res.status(200).json({
-      status: 'success',
-      results: bookings.length,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-      data: { bookings }
+    
+    const bookings = await Booking.find(filter)
+      .populate('user', 'firstName lastName email')
+      .populate('service', 'name price duration')
+      .populate('provider', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      count: bookings.length,
+      bookings
     });
   } catch (error) {
     next(error);
@@ -451,145 +295,154 @@ export const getAllBookings = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Generate reports (users, bookings, revenue)
- * @route   GET /api/admin/reports
- * @access  Private (Admin only)
+ * @desc    Generate reports
+ * @route   GET /api/v1/admin/reports
+ * @access  Private/Admin
  */
 export const generateReports = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { reportType, startDate, endDate } = req.query;
     
-    if (!reportType) {
-      return next(createError.badRequest('Report type is required'));
-    }
-
-    // Parse date range
-    const dateFilter: any = {};
-    if (startDate) {
-      dateFilter.$gte = new Date(startDate as string);
-    }
-    if (endDate) {
-      dateFilter.$lte = new Date(endDate as string);
-    }
-
-    let report;
-
+    const start = startDate ? new Date(startDate as string) : new Date(new Date().setMonth(new Date().getMonth() - 1));
+    const end = endDate ? new Date(endDate as string) : new Date();
+    
     switch (reportType) {
-      case 'users':
-        // User registration report
-        const userQuery: any = {};
-        if (Object.keys(dateFilter).length > 0) {
-          userQuery.createdAt = dateFilter;
-        }
-
-        const totalUsers = await User.countDocuments();
-        const newUsers = await User.countDocuments(userQuery);
+      case 'user-growth':
+        // User growth report
+        const userGrowth = await User.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: start, $lte: end }
+            }
+          },
+          {
+            $group: {
+              _id: {
+                year: { $year: '$createdAt' },
+                month: { $month: '$createdAt' },
+                day: { $dayOfMonth: '$createdAt' }
+              },
+              count: { $sum: 1 }
+            }
+          },
+          {
+            $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 }
+          },
+          {
+            $project: {
+              _id: 0,
+              date: {
+                $dateToString: {
+                  format: '%Y-%m-%d',
+                  date: {
+                    $dateFromParts: {
+                      year: '$_id.year',
+                      month: '$_id.month',
+                      day: '$_id.day'
+                    }
+                  }
+                }
+              },
+              count: 1
+            }
+          }
+        ]);
         
-        // User roles breakdown
-        const usersByRole = await User.aggregate([
-          { $group: { _id: '$role', count: { $sum: 1 } } }
-        ]);
-
-        // User verification status breakdown
-        const usersByVerification = await User.aggregate([
-          { $group: { _id: '$verificationStatus', count: { $sum: 1 } } }
-        ]);
-
-        report = {
-          totalUsers,
-          newUsers,
-          usersByRole: usersByRole.reduce((acc, curr) => {
-            acc[curr._id] = curr.count;
-            return acc;
-          }, {}),
-          usersByVerification: usersByVerification.reduce((acc, curr) => {
-            acc[curr._id] = curr.count;
-            return acc;
-          }, {})
-        };
-        break;
-
-      case 'bookings':
-        // Booking statistics report
-        const bookingQuery: any = {};
-        if (Object.keys(dateFilter).length > 0) {
-          bookingQuery.createdAt = dateFilter;
-        }
-
-        const totalBookings = await Booking.countDocuments();
-        const newBookings = await Booking.countDocuments(bookingQuery);
+        return res.json({
+          reportType: 'user-growth',
+          timeframe: { start, end },
+          data: userGrowth
+        });
         
-        // Bookings by status
-        const bookingsByStatus = await Booking.aggregate([
-          { $group: { _id: '$status', count: { $sum: 1 } } }
+      case 'booking-stats':
+        // Booking statistics
+        const bookingStats = await Booking.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: start, $lte: end }
+            }
+          },
+          {
+            $group: {
+              _id: '$status',
+              count: { $sum: 1 },
+              revenue: {
+                $sum: {
+                  $cond: [
+                    { $eq: ['$status', 'completed'] },
+                    '$totalAmount',
+                    0
+                  ]
+                }
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              status: '$_id',
+              count: 1,
+              revenue: 1
+            }
+          }
         ]);
-
-        // Average booking value
-        const avgBookingValue = await Booking.aggregate([
-          { $group: { _id: null, avg: { $avg: '$totalPrice' } } }
+        
+        return res.json({
+          reportType: 'booking-stats',
+          timeframe: { start, end },
+          data: bookingStats
+        });
+        
+      case 'service-popularity':
+        // Service popularity
+        const servicePopularity = await Booking.aggregate([
+          {
+            $match: {
+              createdAt: { $gte: start, $lte: end },
+              status: 'completed'
+            }
+          },
+          {
+            $group: {
+              _id: '$service',
+              bookingsCount: { $sum: 1 },
+              revenue: { $sum: '$totalAmount' }
+            }
+          },
+          {
+            $lookup: {
+              from: 'services',
+              localField: '_id',
+              foreignField: '_id',
+              as: 'serviceDetails'
+            }
+          },
+          {
+            $unwind: '$serviceDetails'
+          },
+          {
+            $project: {
+              _id: 0,
+              serviceId: '$_id',
+              serviceName: '$serviceDetails.name',
+              bookingsCount: 1,
+              revenue: 1
+            }
+          },
+          {
+            $sort: { bookingsCount: -1 }
+          }
         ]);
-
-        report = {
-          totalBookings,
-          newBookings,
-          bookingsByStatus: bookingsByStatus.reduce((acc, curr) => {
-            acc[curr._id] = curr.count;
-            return acc;
-          }, {}),
-          avgBookingValue: avgBookingValue.length > 0 ? avgBookingValue[0].avg : 0
-        };
-        break;
-
-      case 'revenue':
-        // Revenue report
-        const transactionQuery: any = { status: 'completed' };
-        if (Object.keys(dateFilter).length > 0) {
-          transactionQuery.createdAt = dateFilter;
-        }
-
-        // Total revenue
-        const totalRevenue = await Transaction.aggregate([
-          { $match: { status: 'completed' } },
-          { $group: { _id: null, total: { $sum: '$amount' } } }
-        ]);
-
-        // Revenue in date range
-        const periodRevenue = await Transaction.aggregate([
-          { $match: transactionQuery },
-          { $group: { _id: null, total: { $sum: '$amount' } } }
-        ]);
-
-        // Platform commission
-        const platformCommission = await Transaction.aggregate([
-          { $match: transactionQuery },
-          { $group: { _id: null, total: { $sum: '$platformCommission' } } }
-        ]);
-
-        // Revenue by payment method
-        const revenueByPaymentMethod = await Transaction.aggregate([
-          { $match: { status: 'completed' } },
-          { $group: { _id: '$paymentMethod', total: { $sum: '$amount' } } }
-        ]);
-
-        report = {
-          totalRevenue: totalRevenue.length > 0 ? totalRevenue[0].total : 0,
-          periodRevenue: periodRevenue.length > 0 ? periodRevenue[0].total : 0,
-          platformCommission: platformCommission.length > 0 ? platformCommission[0].total : 0,
-          revenueByPaymentMethod: revenueByPaymentMethod.reduce((acc, curr) => {
-            acc[curr._id] = curr.total;
-            return acc;
-          }, {})
-        };
-        break;
-
+        
+        return res.json({
+          reportType: 'service-popularity',
+          timeframe: { start, end },
+          data: servicePopularity
+        });
+        
       default:
-        return next(createError.badRequest('Invalid report type. Use users, bookings, or revenue'));
+        return res.status(400).json({ message: 'Invalid report type' });
     }
-
-    res.status(200).json({
-      status: 'success',
-      data: { report }
-    });
   } catch (error) {
     next(error);
   }
