@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { 
   register, 
   login,
+  registerProvider,
   forgotPassword, 
   resetPassword, 
   updateUserPassword,
@@ -27,6 +28,7 @@ const router = Router();
 
 // Public Routes
 router.post('/register', catchAsync(register));
+router.post('/register-provider', catchAsync(registerProvider));
 router.post('/login', catchAsync(login));
 router.post('/forgot-password', catchAsync(forgotPassword));
 router.post('/reset-password', catchAsync(resetPassword));

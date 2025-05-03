@@ -5,7 +5,8 @@ import {
   uploadDocuments as uploadDocumentsController,
   updateProfilePicture,
   updateAddress,
-  getOnboardingStatus
+  getOnboardingStatus,
+  getProviderServices
 } from '../controllers/providerController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 import { catchAsync } from '../middleware/errorHandler';
@@ -27,5 +28,8 @@ router.post('/profile-picture', uploadProfilePicture('profilePicture'), catchAsy
 
 // Address update route
 router.post('/address', catchAsync(updateAddress));
+
+// Services route
+router.get('/services', catchAsync(getProviderServices));
 
 export default router;
