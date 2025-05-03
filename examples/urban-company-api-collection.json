@@ -1,0 +1,956 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Urban-Company Caregiving API",
+    "description": "A collection for testing the Urban-Company Caregiving Platform API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"Password123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phoneNumber\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user"
+          },
+          "response": []
+        },
+        {
+          "name": "Register Provider",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"provider@example.com\",\n  \"password\": \"Password123!\",\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"phoneNumber\": \"+1234567891\",\n  \"serviceCategories\": [\"child-care\", \"elder-care\"],\n  \"experience\": 5,\n  \"bio\": \"Experienced caregiver with 5 years of experience\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register-provider",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register-provider"]
+            },
+            "description": "Register a new provider"
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set(\"backend_token\", jsonData.data.token);",
+                  "    if (jsonData.data.user && jsonData.data.user._id) {",
+                  "        pm.environment.set(\"user_id\", jsonData.data.user._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebase_id_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with Firebase ID token"
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/forgot-password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "forgot-password"]
+            },
+            "description": "Request password reset"
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset-token\",\n  \"password\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/reset-password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "reset-password"]
+            },
+            "description": "Reset password with token"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get current user data"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123!\",\n  \"newPassword\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/update-password",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "update-password"]
+            },
+            "description": "Update user password"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/verify-email",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "verify-email"]
+            },
+            "description": "Verify user email"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "profile"]
+            },
+            "description": "Get user profile"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phoneNumber\": \"+1234567890\",\n  \"address\": \"123 Main St, City, State, 12345\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "profile"]
+            },
+            "description": "Update user profile"
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication related endpoints"
+    },
+    {
+      "name": "Services",
+      "item": [
+        {
+          "name": "Get All Services",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/services",
+              "host": ["{{base_url}}"],
+              "path": ["services"]
+            },
+            "description": "Get all services"
+          },
+          "response": []
+        },
+        {
+          "name": "Search Services",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/services/search?query=babysitting&category=child-care",
+              "host": ["{{base_url}}"],
+              "path": ["services", "search"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "babysitting"
+                },
+                {
+                  "key": "category",
+                  "value": "child-care"
+                }
+              ]
+            },
+            "description": "Search for services"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.categories && jsonData.data.categories.length > 0) {",
+                  "    pm.environment.set(\"category_id\", jsonData.data.categories[0]._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/services/categories",
+              "host": ["{{base_url}}"],
+              "path": ["services", "categories"]
+            },
+            "description": "Get all service categories"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service Category by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/services/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["services", "categories", "{{category_id}}"]
+            },
+            "description": "Get service category by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Services by Category",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/services/category/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["services", "category", "{{category_id}}"]
+            },
+            "description": "Get services by category"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/services/{{service_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["services", "{{service_id}}"]
+            },
+            "description": "Get service by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service (Provider)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.service && jsonData.data.service._id) {",
+                  "    pm.environment.set(\"service_id\", jsonData.data.service._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Babysitting Service",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Professional babysitting service for children of all ages",
+                  "type": "text"
+                },
+                {
+                  "key": "price[amount]",
+                  "value": "25",
+                  "type": "text"
+                },
+                {
+                  "key": "price[type]",
+                  "value": "hourly",
+                  "type": "text"
+                },
+                {
+                  "key": "duration",
+                  "value": "60",
+                  "type": "text"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "{{category_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "additionalDetails[includedServices]",
+                  "value": "[\"Meal preparation\", \"Homework help\"]",
+                  "type": "text"
+                },
+                {
+                  "key": "additionalDetails[specialRequirements]",
+                  "value": "Please provide any dietary restrictions",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/services",
+              "host": ["{{base_url}}"],
+              "path": ["services"]
+            },
+            "description": "Create a new service (Provider only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Service (Provider)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "title",
+                  "value": "Updated Babysitting Service",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Professional babysitting service with additional features",
+                  "type": "text"
+                },
+                {
+                  "key": "price[amount]",
+                  "value": "30",
+                  "type": "text"
+                },
+                {
+                  "key": "price[type]",
+                  "value": "hourly",
+                  "type": "text"
+                },
+                {
+                  "key": "duration",
+                  "value": "120",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/services/{{service_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["services", "{{service_id}}"]
+            },
+            "description": "Update a service (Provider only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Service (Provider)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/services/{{service_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["services", "{{service_id}}"]
+            },
+            "description": "Delete a service (Provider only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Service related endpoints"
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Create Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.booking && jsonData.data.booking._id) {",
+                  "    pm.environment.set(\"booking_id\", jsonData.data.booking._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": \"{{service_id}}\",\n  \"timeSlotId\": \"{{timeslot_id}}\",\n  \"address\": {\n    \"street\": \"123 Main St\",\n    \"city\": \"New York\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\",\n    \"country\": \"United States\"\n  },\n  \"specialInstructions\": \"Please call when you arrive\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings",
+              "host": ["{{base_url}}"],
+              "path": ["bookings"]
+            },
+            "description": "Create a new booking"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Bookings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/bookings/user",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "user"]
+            },
+            "description": "Get user's bookings"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Provider Bookings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/bookings/provider",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "provider"]
+            },
+            "description": "Get provider's bookings (Provider only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Booking by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}"]
+            },
+            "description": "Get booking by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Booking Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}", "status"]
+            },
+            "description": "Update booking status (Provider or User)"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}"]
+            },
+            "description": "Cancel a booking"
+          },
+          "response": []
+        }
+      ],
+      "description": "Booking related endpoints"
+    },
+    {
+      "name": "Time Slots",
+      "item": [
+        {
+          "name": "Get Service Time Slots",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.groupedSlots) {",
+                  "    const dates = Object.keys(jsonData.data.groupedSlots);",
+                  "    if (dates.length > 0 && jsonData.data.groupedSlots[dates[0]].length > 0) {",
+                  "        pm.environment.set(\"timeslot_id\", jsonData.data.groupedSlots[dates[0]][0]._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/timeslots/service/{{service_id}}?startDate=2025-04-01&endDate=2025-04-30",
+              "host": ["{{base_url}}"],
+              "path": ["timeslots", "service", "{{service_id}}"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-04-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-04-30"
+                }
+              ]
+            },
+            "description": "Get time slots for a service"
+          },
+          "response": []
+        },
+        {
+          "name": "Book Time Slot",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": {\n    \"street\": \"123 Main St\",\n    \"city\": \"New York\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\",\n    \"country\": \"United States\"\n  },\n  \"specialInstructions\": \"Please call when you arrive\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/timeslots/{{timeslot_id}}/book",
+              "host": ["{{base_url}}"],
+              "path": ["timeslots", "{{timeslot_id}}", "book"]
+            },
+            "description": "Book a time slot"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Time Slots (Provider)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": \"{{service_id}}\",\n  \"slots\": [\n    {\n      \"date\": \"2025-04-15\",\n      \"startTime\": \"09:00\",\n      \"endTime\": \"10:00\"\n    },\n    {\n      \"date\": \"2025-04-15\",\n      \"startTime\": \"11:00\",\n      \"endTime\": \"12:00\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/timeslots",
+              "host": ["{{base_url}}"],
+              "path": ["timeslots"]
+            },
+            "description": "Create time slots (Provider only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Provider Time Slots",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/timeslots/provider?serviceId={{service_id}}&startDate=2025-04-01&endDate=2025-04-30",
+              "host": ["{{base_url}}"],
+              "path": ["timeslots", "provider"],
+              "query": [
+                {
+                  "key": "serviceId",
+                  "value": "{{service_id}}"
+                },
+                {
+                  "key": "startDate",
+                  "value": "2025-04-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-04-30"
+                }
+              ]
+            },
+            "description": "Get provider's time slots (Provider only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Time Slot (Provider)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startTime\": \"10:00\",\n  \"endTime\": \"11:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/timeslots/{{timeslot_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["timeslots", "{{timeslot_id}}"]
+            },
+            "description": "Update a time slot (Provider only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Time Slot (Provider)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/timeslots/{{timeslot_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["timeslots", "{{timeslot_id}}"]
+            },
+            "description": "Delete a time slot (Provider only)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Time slot related endpoints"
+    },
+    {
+      "name": "Reviews",
+      "item": [
+        {
+          "name": "Get Provider Reviews",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reviews/provider/{{provider_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["reviews", "provider", "{{provider_id}}"]
+            },
+            "description": "Get reviews for a provider"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service Reviews",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reviews/service/{{service_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["reviews", "service", "{{service_id}}"]
+            },
+            "description": "Get reviews for a service"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Review by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reviews/{{review_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["reviews", "{{review_id}}"]
+            },
+            "description": "Get review by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Review",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.review && jsonData.data.review._id) {",
+                  "    pm.environment.set(\"review_id\", jsonData.data.review._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": \"{{service_id}}\",\n  \"bookingId\": \"{{booking_id}}\",\n  \"rating\": 5,\n  \"comment\": \"Excellent service! Highly recommended.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/reviews",
+              "host": ["{{base_url}}"],
+              "path": ["reviews"]
+            },
+            "description": "Create a review"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reviews/user",
+              "host": ["{{base_url}}"],
+              "path": ["reviews", "user"]
+            },
+            "description": "Get user's reviews"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Review",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{backend_token}}"

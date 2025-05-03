@@ -1,0 +1,246 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-a1b2-c3d4e5f67890",
+    "name": "Caregiving API - Provider Authentication",
+    "description": "A collection for testing the provider authentication API endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints",
+      "item": [
+        {
+          "name": "Register Provider",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebase_id_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"bio\": \"Experienced caregiver with 10+ years of experience working with seniors.\",\n  \"serviceCategories\": [\"{{service_category_id_1}}\", \"{{service_category_id_2}}\"],\n  \"certifications\": [\"CPR Certified\", \"First Aid Certified\"],\n  \"yearsOfExperience\": 10,\n  \"hourlyRate\": 25,\n  \"serviceAreas\": [\n    {\n      \"city\": \"New York\",\n      \"state\": \"NY\"\n    },\n    {\n      \"city\": \"Brooklyn\",\n      \"state\": \"NY\"\n    }\n  ],\n  \"languagesSpoken\": [\"English\", \"Spanish\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register-provider",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register-provider"
+              ]
+            },
+            "description": "Register a new provider with Firebase ID token"
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebase_id_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login with Firebase ID token"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{secure_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Get user data with secure token"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Provider Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{secure_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "profile"
+              ]
+            },
+            "description": "Get provider profile with secure token"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Provider Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{secure_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"phoneNumber\": \"123-456-7890\",\n  \"address\": {\n    \"street\": \"123 Main St\",\n    \"city\": \"New York\",\n    \"state\": \"NY\",\n    \"zipCode\": \"10001\",\n    \"country\": \"USA\"\n  },\n  \"bio\": \"Updated bio with additional qualifications.\",\n  \"certifications\": [\"CPR Certified\", \"First Aid Certified\", \"Dementia Care Certified\"],\n  \"yearsOfExperience\": 12,\n  \"hourlyRate\": 30,\n  \"serviceAreas\": [\n    {\n      \"city\": \"New York\",\n      \"state\": \"NY\"\n    },\n    {\n      \"city\": \"Brooklyn\",\n      \"state\": \"NY\"\n    },\n    {\n      \"city\": \"Queens\",\n      \"state\": \"NY\"\n    }\n  ],\n  \"languagesSpoken\": [\"English\", \"Spanish\", \"French\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "profile"
+              ]
+            },
+            "description": "Update provider profile with secure token"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebase_id_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/verify-email",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-email"
+              ]
+            },
+            "description": "Verify email with Firebase ID token"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "firebase_id_token",
+      "value": "your-firebase-id-token",
+      "type": "string"
+    },
+    {
+      "key": "secure_token",
+      "value": "your-secure-token",
+      "type": "string"
+    },
+    {
+      "key": "service_category_id_1",
+      "value": "60a1b2c3d4e5f6a7b8c9d0e1",
+      "type": "string"
+    },
+    {
+      "key": "service_category_id_2",
+      "value": "60a1b2c3d4e5f6a7b8c9d0e2",
+      "type": "string"
+    }
+  ]
+}
