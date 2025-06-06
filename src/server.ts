@@ -1,14 +1,28 @@
 import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import App from './app';
 import { config } from './config/env';
+import { setupSocketIO } from './services/socketService';
+import { setSocketIO } from './controllers/bookingController';
+import { scheduleProviderPayouts } from './services/paymentService';
 
 class Server {
   private app: App;
   private server: http.Server;
+  private io: SocketIOServer;
 
   constructor() {
     this.app = new App();
     this.server = http.createServer(this.app.express);
+    this.io = new SocketIOServer(this.server, {
+      cors: {
+        origin: process.env.NODE_ENV === 'development' 
+          ? '*' 
+          : process.env.FRONTEND_URL || 'http://localhost:3000',
+        methods: ['GET', 'POST'],
+        credentials: true
+      }
+    });
   }
 
   private normalizePort(val: string): number | string | boolean {
@@ -64,6 +78,15 @@ class Server {
     // Set port
     const port = this.normalizePort(config.PORT || '5000');
     this.app.express.set('port', port);
+
+    // Setup Socket.IO
+    setupSocketIO(this.io);
+    setSocketIO(this.io);
+    console.log('🔌 Socket.IO initialized');
+    
+    // Schedule weekly provider payouts
+    scheduleProviderPayouts();
+    console.log('💰 Weekly provider payouts scheduled');
 
     // Start server
     this.server.listen(port);

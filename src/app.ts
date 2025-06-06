@@ -13,6 +13,11 @@ import timeSlotRoutes from './routes/timeSlotRoutes';
 import walletRoutes from './routes/walletRoutes';
 import reviewRoutes from './routes/reviewRoutes';
 import providerRoutes from './routes/providerRoutes';
+import wishlistRoutes from './routes/wishlistRoutes';
+import addressRoutes from './routes/addressRoutes';
+import chatRoutes from './routes/chatRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import paymentRoutes from './routes/paymentRoutes';
 import { connectDatabase } from './config/database';
 import { loadEnvironmentVariables } from './config/env';
 import './config/firebase-admin'; // Initialize Firebase Admin SDK
@@ -33,10 +38,23 @@ class App {
 
     // Security middlewares
     this.express.use(helmet());
-    this.express.use(cors({
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-      credentials: true
-    }));
+    
+    // Configure CORS to be more permissive in development mode
+    if (process.env.NODE_ENV === 'development') {
+      this.express.use(cors({
+        origin: '*', // Allow all origins in development
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+      }));
+      console.log('⚠️ CORS configured for development (allowing all origins)');
+    } else {
+      this.express.use(cors({
+        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        credentials: true
+      }));
+      console.log('🔒 CORS configured for production');
+    }
 
     // Request parsing and compression
     this.express.use(express.json({ limit: '10kb' }));
@@ -51,35 +69,41 @@ class App {
 
     // Rate limiting - different limits for authenticated and unauthenticated users
     const publicLimiter = rateLimit({
-      max: 100, // limit each IP to 100 requests per windowMs
+      max: 300, // Increased from 100 to 300 requests per windowMs
       windowMs: 15 * 60 * 1000, // 15 minutes
       message: 'Too many requests from this IP, please try again later',
-      skip: (req) => !!req.headers.authorization // Skip rate limiting for authenticated users
+      standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+      legacyHeaders: false, // Disable the `X-RateLimit-*` headers
     });
     
     const authLimiter = rateLimit({
-      max: 600, // Increased limit for authenticated users
+      max: 1200, // Increased from 600 to 1200 requests per windowMs
       windowMs: 15 * 60 * 1000, // 15 minutes
       message: 'Too many requests, please try again later',
-      skip: (req) => !req.headers.authorization // Skip rate limiting for unauthenticated users
+      standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+      legacyHeaders: false, // Disable the `X-RateLimit-*` headers
     });
     
-    // Apply rate limiting to all routes except provider-specific routes
+    // Apply rate limiting to all routes except provider-specific routes and timeslot service routes
     this.express.use('/api', (req: Request, res: Response, next: NextFunction) => {
-      // Skip rate limiting for provider-specific routes
-      if (req.path.startsWith('/v1/providers/')) {
+      // Skip rate limiting for provider-specific routes and timeslot service routes
+      if (req.path.startsWith('/v1/providers/') || 
+          (req.path.startsWith('/v1/timeslots/service/') && req.method === 'GET')) {
         return next();
       }
       
-      // Apply rate limiting for other routes
-      publicLimiter(req, res, (err: any) => {
-        if (err) return next(err);
+      // Apply different rate limiters based on authentication status
+      if (req.headers.authorization) {
+        // For authenticated users, apply the higher limit
         authLimiter(req, res, next);
-      });
+      } else {
+        // For unauthenticated users, apply the lower limit
+        publicLimiter(req, res, next);
+      }
     });
 
     // Apply caching middleware to frequently accessed routes
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_CACHING === 'true') {
       const { cacheResponse } = require('./middleware/cacheMiddleware');
       
       // Cache service-related GET endpoints
@@ -87,6 +111,43 @@ class App {
         if (req.method === 'GET') {
           // Cache for 5 minutes by default
           const ttl = req.path.includes('/categories') ? 3600 : 300; // Cache categories for 1 hour
+          return cacheResponse(ttl)(req, res, next);
+        }
+        next();
+      });
+      
+      // Cache booking-related GET endpoints (except for active bookings which need real-time data)
+      this.express.use('/api/v1/bookings', (req: Request, res: Response, next: NextFunction) => {
+        if (req.method === 'GET' && !req.path.includes('/active')) {
+          // Cache for 2 minutes
+          return cacheResponse(120)(req, res, next);
+        }
+        next();
+      });
+      
+      // Cache provider-related GET endpoints
+      this.express.use('/api/v1/providers', (req: Request, res: Response, next: NextFunction) => {
+        if (req.method === 'GET') {
+          // Cache for 5 minutes
+          return cacheResponse(300)(req, res, next);
+        }
+        next();
+      });
+      
+      // Cache review-related GET endpoints
+      this.express.use('/api/v1/reviews', (req: Request, res: Response, next: NextFunction) => {
+        if (req.method === 'GET') {
+          // Cache for 10 minutes
+          return cacheResponse(600)(req, res, next);
+        }
+        next();
+      });
+      
+      // Cache timeslot-related GET endpoints
+      this.express.use('/api/v1/timeslots', (req: Request, res: Response, next: NextFunction) => {
+        if (req.method === 'GET') {
+          // Cache for 5 minutes for public endpoints, 2 minutes for provider endpoints
+          const ttl = req.path.includes('/service/') ? 300 : 120;
           return cacheResponse(ttl)(req, res, next);
         }
         next();
@@ -109,6 +170,38 @@ class App {
         timestamp: new Date().toISOString()
       });
     });
+    
+    // Import auth middleware
+    const { protect, restrictTo } = require('./middleware/authMiddleware');
+    
+    // Cache statistics route (admin only)
+    this.express.get('/api/v1/admin/cache-stats', protect, restrictTo('admin'), (req: Request, res: Response) => {
+      // Import cache stats from cacheMiddleware
+      const { getCacheStats } = require('./middleware/cacheMiddleware');
+      const stats = getCacheStats();
+      
+      res.status(200).json({
+        stats,
+        timestamp: new Date().toISOString()
+      });
+    });
+    
+    // Clear cache route (admin only)
+    this.express.post('/api/v1/admin/clear-cache', protect, restrictTo('admin'), (req: Request, res: Response) => {
+      // Import clearCache from cacheMiddleware
+      const { clearCache } = require('./middleware/cacheMiddleware');
+      
+      // Get pattern from request body or clear all if not specified
+      const { pattern = '' } = req.body;
+      
+      // Clear cache
+      clearCache(pattern);
+      
+      res.status(200).json({
+        message: `Cache cleared for pattern: ${pattern || 'all'}`,
+        timestamp: new Date().toISOString()
+      });
+    });
 
     // API Routes
     this.express.use('/api/v1/auth', authRoutes);
@@ -119,6 +212,11 @@ class App {
     this.express.use('/api/v1/wallet', walletRoutes);
     this.express.use('/api/v1/reviews', reviewRoutes);
     this.express.use('/api/v1/providers', providerRoutes);
+    this.express.use('/api/v1/wishlist', wishlistRoutes);
+    this.express.use('/api/v1/addresses', addressRoutes);
+    this.express.use('/api/v1/chats', chatRoutes);
+    this.express.use('/api/v1/notifications', notificationRoutes);
+    this.express.use('/api/v1/payments', paymentRoutes);
 
     // 404 handler for undefined routes
     this.express.use('*', (req: Request, res: Response) => {

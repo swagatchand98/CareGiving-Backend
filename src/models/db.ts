@@ -176,6 +176,14 @@ interface IWallet extends Document {
   updatedAt: Date;
 }
 
+// Wishlist Interface
+interface IWishlist extends Document {
+  userId: mongoose.Types.ObjectId;
+  serviceId: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // TimeSlot Interface
 interface ITimeSlot extends Document {
   providerId: mongoose.Types.ObjectId;
@@ -766,6 +774,29 @@ const TimeSlotSchema: Schema = new Schema<ITimeSlot>({
 // Create compound index for unique time slots
 TimeSlotSchema.index({ providerId: 1, date: 1, startTime: 1, endTime: 1 }, { unique: true });
 
+// Wishlist Schema
+const WishlistSchema: Schema = new Schema<IWishlist>({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  serviceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Service',
+    required: true
+  }
+}, {
+  timestamps: true
+});
+
+// Create compound index for unique wishlist items per user
+WishlistSchema.index({ userId: 1, serviceId: 1 }, { unique: true });
+
+// Import models
+import ChatModel from './chatModel';
+import notificationSchema from './notificationModel';
+
 // Create Models
 export const User = mongoose.model<IUser>('User', UserSchema);
 export const ProviderProfile = mongoose.model<IProviderProfile>('ProviderProfile', ProviderProfileSchema);
@@ -774,7 +805,9 @@ export const Service = mongoose.model<IService>('Service', ServiceSchema);
 export const Booking = mongoose.model<IBooking>('Booking', BookingSchema);
 export const Transaction = mongoose.model<ITransaction>('Transaction', TransactionSchema);
 export const Review = mongoose.model<IReview>('Review', ReviewSchema);
-export const Notification = mongoose.model<INotification>('Notification', NotificationSchema);
+export const Notification = mongoose.model<INotification>('Notification', notificationSchema);
 export const Subscription = mongoose.model<ISubscription>('Subscription', SubscriptionSchema);
 export const Wallet = mongoose.model<IWallet>('Wallet', WalletSchema);
 export const TimeSlot = mongoose.model<ITimeSlot>('TimeSlot', TimeSlotSchema);
+export const Wishlist = mongoose.model<IWishlist>('Wishlist', WishlistSchema);
+export const Chat = ChatModel;

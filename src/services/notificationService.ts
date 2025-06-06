@@ -1,28 +1,84 @@
-import { Notification, User, Booking } from '../models/db';
+import { Notification, User } from '../models/db';
 import mongoose from 'mongoose';
+import * as emailService from './emailService';
 
 /**
  * Create a new notification
- * @param notificationData - Notification data
- * @returns Created notification document
+ * @param userId - User ID
+ * @param type - Notification type
+ * @param content - Notification content
+ * @param relatedEntityId - Related entity ID (optional)
+ * @param sendEmail - Whether to send an email notification (default: true)
+ * @returns Created notification
  */
-export const createNotification = async (notificationData: {
-  userId: string;
-  type: 'booking' | 'message' | 'review' | 'system';
-  content: string;
-  relatedEntityId?: string;
-}) => {
-  return Notification.create({
-    ...notificationData,
-    isRead: false
-  });
+export const createNotification = async (
+  userId: string,
+  type: 'booking' | 'message' | 'review' | 'system',
+  content: string,
+  relatedEntityId?: string,
+  sendEmail: boolean = true
+) => {
+  try {
+    // Create notification in database
+    const notification = await Notification.create({
+      userId,
+      type,
+      content,
+      relatedEntityId,
+      isRead: false
+    });
+
+  // Send email notification if requested
+  if (sendEmail) {
+    try {
+      const user = await User.findById(userId);
+      if (user && user.email) {
+        // Determine email subject based on notification type
+        let subject = '';
+        switch (type) {
+          case 'booking':
+            subject = 'New Booking Notification';
+            break;
+          case 'message':
+            subject = 'New Message Notification';
+            break;
+          case 'review':
+            subject = 'New Review Notification';
+            break;
+          case 'system':
+            subject = 'System Notification';
+            break;
+        }
+
+        // Send email with error handling
+        const emailResult = await emailService.sendSystemNotificationEmail(
+          userId,
+          subject,
+          content
+        );
+        
+        if (emailResult && typeof emailResult === 'object' && 'emailSent' in emailResult && !emailResult.emailSent) {
+          console.warn(`Email notification not sent for ${type} notification to user ${userId}`);
+        }
+      }
+    } catch (emailError) {
+      console.error('Error sending email notification:', emailError);
+      // Continue even if email fails
+    }
+  }
+
+    return notification;
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    throw error;
+  }
 };
 
 /**
- * Get notifications for a user with pagination
+ * Get user notifications with pagination
  * @param userId - User ID
  * @param options - Pagination options
- * @returns Notifications and total count
+ * @returns Notifications and pagination info
  */
 export const getUserNotifications = async (
   userId: string,
@@ -30,44 +86,64 @@ export const getUserNotifications = async (
     page?: number;
     limit?: number;
     unreadOnly?: boolean;
-  }
+  } = {}
 ) => {
-  const { page = 1, limit = 10, unreadOnly = false } = options;
-  const skip = (page - 1) * limit;
+  try {
+    const { page = 1, limit = 10, unreadOnly = false } = options;
+    const skip = (page - 1) * limit;
 
-  const query: any = { userId };
-  
-  // Filter by read status
-  if (unreadOnly) {
-    query.isRead = false;
+    // Build query
+    const query: any = { userId: new mongoose.Types.ObjectId(userId) };
+    if (unreadOnly) {
+      query.isRead = false;
+    }
+
+    // Get total count
+    const total = await Notification.countDocuments(query);
+
+    // Get notifications with pagination
+    const notifications = await Notification.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return {
+      notifications,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  } catch (error) {
+    console.error('Error getting user notifications:', error);
+    throw error;
   }
-
-  const notifications = await Notification.find(query)
-    .skip(skip)
-    .limit(limit)
-    .sort({ createdAt: -1 });
-
-  const total = await Notification.countDocuments(query);
-
-  return {
-    notifications,
-    total,
-    page,
-    totalPages: Math.ceil(total / limit)
-  };
 };
 
 /**
  * Mark notification as read
  * @param notificationId - Notification ID
- * @returns Updated notification document
+ * @returns Updated notification
  */
 export const markNotificationAsRead = async (notificationId: string) => {
-  return Notification.findByIdAndUpdate(
-    notificationId,
-    { isRead: true },
-    { new: true }
-  );
+  try {
+    const notification = await Notification.findByIdAndUpdate(
+      notificationId,
+      { isRead: true },
+      { new: true }
+    );
+
+    if (!notification) {
+      throw new Error('Notification not found');
+    }
+
+    return notification;
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    throw error;
+  }
 };
 
 /**
@@ -76,159 +152,225 @@ export const markNotificationAsRead = async (notificationId: string) => {
  * @returns Success message
  */
 export const markAllNotificationsAsRead = async (userId: string) => {
-  await Notification.updateMany(
-    { userId, isRead: false },
-    { isRead: true }
-  );
+  try {
+    await Notification.updateMany(
+      { userId: new mongoose.Types.ObjectId(userId), isRead: false },
+      { isRead: true }
+    );
 
-  return { message: 'All notifications marked as read' };
+    return { success: true, message: 'All notifications marked as read' };
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    throw error;
+  }
 };
 
 /**
- * Delete a notification
+ * Delete notification
  * @param notificationId - Notification ID
  * @returns Success message
  */
 export const deleteNotification = async (notificationId: string) => {
-  await Notification.findByIdAndDelete(notificationId);
-  return { message: 'Notification deleted successfully' };
-};
+  try {
+    const notification = await Notification.findByIdAndDelete(notificationId);
 
-/**
- * Send booking notification to user and provider
- * @param bookingId - Booking ID
- * @param action - Booking action (created, confirmed, started, completed, cancelled)
- * @returns Created notifications
- */
-export const sendBookingNotification = async (
-  bookingId: string,
-  action: 'created' | 'confirmed' | 'started' | 'completed' | 'cancelled'
-) => {
-  // Use type assertion to handle populated fields
-  const booking = await Booking.findById(bookingId)
-    .populate({
-      path: 'serviceId',
-      select: 'title'
-    })
-    .populate({
-      path: 'userId',
-      select: 'firstName lastName'
-    })
-    .populate({
-      path: 'providerId',
-      select: 'firstName lastName'
-    });
+    if (!notification) {
+      throw new Error('Notification not found');
+    }
 
-  if (!booking) {
-    throw new Error('Booking not found');
+    return { success: true, message: 'Notification deleted successfully' };
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    throw error;
   }
-
-  // Type assertions for populated fields
-  const service = booking.serviceId as unknown as { title: string };
-  const user = booking.userId as unknown as { firstName: string; lastName: string };
-  const provider = booking.providerId as unknown as { firstName: string; lastName: string };
-
-  const serviceName = service.title;
-  const userName = `${user.firstName} ${user.lastName}`;
-  const providerName = `${provider.firstName} ${provider.lastName}`;
-  
-  let userContent = '';
-  let providerContent = '';
-
-  switch (action) {
-    case 'created':
-      userContent = `Your booking for ${serviceName} has been created and is pending confirmation.`;
-      providerContent = `New booking request from ${userName} for ${serviceName}.`;
-      break;
-    case 'confirmed':
-      userContent = `Your booking for ${serviceName} has been confirmed by ${providerName}.`;
-      providerContent = `You have confirmed the booking for ${serviceName} with ${userName}.`;
-      break;
-    case 'started':
-      userContent = `Your booking for ${serviceName} has been started by ${providerName}.`;
-      providerContent = `You have started the booking for ${serviceName} with ${userName}.`;
-      break;
-    case 'completed':
-      userContent = `Your booking for ${serviceName} has been completed. Please leave a review.`;
-      providerContent = `You have completed the booking for ${serviceName} with ${userName}.`;
-      break;
-    case 'cancelled':
-      userContent = `Your booking for ${serviceName} has been cancelled.`;
-      providerContent = `The booking for ${serviceName} with ${userName} has been cancelled.`;
-      break;
-  }
-
-  // Create notifications
-  const userNotification = await createNotification({
-    userId: booking.userId._id.toString(),
-    type: 'booking',
-    content: userContent,
-    relatedEntityId: bookingId
-  });
-
-  const providerNotification = await createNotification({
-    userId: booking.providerId._id.toString(),
-    type: 'booking',
-    content: providerContent,
-    relatedEntityId: bookingId
-  });
-
-  return {
-    userNotification,
-    providerNotification
-  };
 };
 
 /**
- * Send system notification to a user
- * @param userId - User ID
- * @param content - Notification content
- * @returns Created notification
- */
-export const sendSystemNotification = async (userId: string, content: string) => {
-  return createNotification({
-    userId,
-    type: 'system',
-    content
-  });
-};
-
-/**
- * Send system notification to all users or users with specific role
- * @param content - Notification content
- * @param role - Optional role filter
- * @returns Number of notifications created
- */
-export const sendSystemNotificationToAll = async (content: string, role?: 'user' | 'provider' | 'admin') => {
-  const query = role ? { role } : {};
-  const users = await User.find(query).select('_id');
-
-  const notifications = await Promise.all(
-    users.map(user => 
-      createNotification({
-        userId: user._id.toString(),
-        type: 'system',
-        content
-      })
-    )
-  );
-
-  return { 
-    message: `Sent notifications to ${notifications.length} users`,
-    count: notifications.length
-  };
-};
-
-/**
- * Get unread notification count for a user
+ * Get unread notification count
  * @param userId - User ID
  * @returns Unread notification count
  */
 export const getUnreadNotificationCount = async (userId: string) => {
-  const count = await Notification.countDocuments({ 
-    userId, 
-    isRead: false 
-  });
+  try {
+    const count = await Notification.countDocuments({
+      userId: new mongoose.Types.ObjectId(userId),
+      isRead: false
+    });
 
-  return { count };
+    return { count };
+  } catch (error) {
+    console.error('Error getting unread notification count:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create booking notification
+ * @param userId - User ID
+ * @param providerId - Provider ID
+ * @param bookingId - Booking ID
+ * @param action - Booking action
+ * @param serviceName - Service name
+ * @returns Created notifications
+ */
+export const createBookingNotification = async (
+  userId: string,
+  providerId: string,
+  bookingId: string,
+  action: 'created' | 'confirmed' | 'started' | 'completed' | 'cancelled',
+  serviceName: string
+) => {
+  try {
+    const notifications = [];
+    
+    // Get user and provider names
+    const [user, provider] = await Promise.all([
+      User.findById(userId),
+      User.findById(providerId)
+    ]);
+    
+    if (!user || !provider) {
+      throw new Error('User or provider not found');
+    }
+    
+    const userName = `${user.firstName} ${user.lastName}`;
+    const providerName = `${provider.firstName} ${provider.lastName}`;
+    
+    // Create notification content based on action
+    let userContent = '';
+    let providerContent = '';
+    
+    switch (action) {
+      case 'created':
+        userContent = `Your booking for ${serviceName} has been created and is pending confirmation.`;
+        providerContent = `${userName} has requested a booking for ${serviceName}.`;
+        break;
+      case 'confirmed':
+        userContent = `Your booking for ${serviceName} has been confirmed by ${providerName}.`;
+        providerContent = `You have confirmed the booking for ${serviceName} with ${userName}.`;
+        break;
+      case 'started':
+        userContent = `Your service for ${serviceName} has been started by ${providerName}.`;
+        providerContent = `You have started the service for ${serviceName} with ${userName}.`;
+        break;
+      case 'completed':
+        userContent = `Your service for ${serviceName} has been completed by ${providerName}.`;
+        providerContent = `You have completed the service for ${serviceName} with ${userName}.`;
+        break;
+      case 'cancelled':
+        userContent = `Your booking for ${serviceName} has been cancelled.`;
+        providerContent = `The booking for ${serviceName} with ${userName} has been cancelled.`;
+        break;
+    }
+    
+    // Create notifications for both user and provider
+    const [userNotification, providerNotification] = await Promise.all([
+      createNotification(userId, 'booking', userContent, bookingId),
+      createNotification(providerId, 'booking', providerContent, bookingId)
+    ]);
+    
+    notifications.push(userNotification, providerNotification);
+    
+    return notifications;
+  } catch (error) {
+    console.error('Error creating booking notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create message notification
+ * @param recipientId - Recipient user ID
+ * @param senderId - Sender user ID
+ * @param messageContent - Message content
+ * @param chatId - Chat ID
+ * @returns Created notification
+ */
+export const createMessageNotification = async (
+  recipientId: string,
+  senderId: string,
+  messageContent: string,
+  chatId: string
+) => {
+  try {
+    // Get sender name
+    const sender = await User.findById(senderId);
+    
+    if (!sender) {
+      throw new Error('Sender not found');
+    }
+    
+    const senderName = `${sender.firstName} ${sender.lastName}`;
+    
+    // Create notification content
+    const content = `New message from ${senderName}: "${messageContent.substring(0, 50)}${messageContent.length > 50 ? '...' : ''}"`;
+    
+    // Create notification
+    const notification = await createNotification(recipientId, 'message', content, chatId);
+    
+    return notification;
+  } catch (error) {
+    console.error('Error creating message notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create review notification
+ * @param providerId - Provider ID
+ * @param userId - User ID
+ * @param rating - Rating
+ * @param reviewId - Review ID
+ * @returns Created notification
+ */
+export const createReviewNotification = async (
+  providerId: string,
+  userId: string,
+  rating: number,
+  reviewId: string
+) => {
+  try {
+    // Get user name
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    const userName = `${user.firstName} ${user.lastName}`;
+    
+    // Create notification content
+    const content = `${userName} has left you a ${rating}-star review.`;
+    
+    // Create notification
+    const notification = await createNotification(providerId, 'review', content, reviewId);
+    
+    return notification;
+  } catch (error) {
+    console.error('Error creating review notification:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create system notification
+ * @param userId - User ID
+ * @param content - Notification content
+ * @param relatedEntityId - Related entity ID (optional)
+ * @returns Created notification
+ */
+export const createSystemNotification = async (
+  userId: string,
+  content: string,
+  relatedEntityId?: string
+) => {
+  try {
+    // Create notification
+    const notification = await createNotification(userId, 'system', content, relatedEntityId);
+    
+    return notification;
+  } catch (error) {
+    console.error('Error creating system notification:', error);
+    throw error;
+  }
 };

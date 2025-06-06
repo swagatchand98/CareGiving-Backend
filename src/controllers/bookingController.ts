@@ -2,6 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { Booking, Service, User, Transaction } from '../models/db';
 import { createError } from '../middleware/errorHandler';
+import * as notificationService from '../services/notificationService';
+import { Server as SocketIOServer } from 'socket.io';
+
+// Socket.io instance
+let io: SocketIOServer;
+
+// Set Socket.io instance
+export const setSocketIO = (socketIO: SocketIOServer) => {
+  io = socketIO;
+};
 
 /**
  * @desc    Create a new booking
@@ -64,6 +74,23 @@ export const createBooking = async (req: Request, res: Response, next: NextFunct
       paymentMethod: 'stripe', // Default payment method
       status: 'pending'
     });
+
+    // Send booking notification
+    try {
+      const bookingId = booking._id as mongoose.Types.ObjectId;
+      const serviceName = service.title;
+      await notificationService.createBookingNotification(
+        req.user._id.toString(),
+        providerId.toString(),
+        bookingId.toString(),
+        'created',
+        serviceName
+      );
+      console.log(`Booking notification sent for new booking: ${bookingId.toString()}`);
+    } catch (error) {
+      console.error('Failed to send booking notification:', error);
+      // Don't throw error here, as we still want to return the booking
+    }
 
     // Populate service and provider details for response
     const populatedBooking = await Booking.findById(booking._id)
@@ -231,12 +258,49 @@ export const getBookingById = async (req: Request, res: Response, next: NextFunc
       return next(createError.notFound('Booking not found'));
     }
 
+    // Debug information
+    console.log('User ID:', req.user._id);
+    console.log('User Firebase UID:', req.user.firebaseUid);
+    console.log('User Role:', req.user.role);
+    console.log('Booking User ID:', booking.userId);
+    console.log('Booking Provider ID:', booking.providerId);
+
+    // Convert IDs to strings for comparison
+    const userIdStr = req.user._id.toString();
+    const bookingUserIdStr = booking.userId.toString();
+    const bookingProviderIdStr = booking.providerId.toString();
+    const firebaseUid = req.user.firebaseUid;
+
+    console.log('User ID (string):', userIdStr);
+    console.log('Booking User ID (string):', bookingUserIdStr);
+    console.log('Booking Provider ID (string):', bookingProviderIdStr);
+    console.log('Firebase UID:', firebaseUid);
+
     // Check if the user is authorized to view this booking
-    if (
-      booking.userId.toString() !== req.user._id.toString() && 
-      booking.providerId.toString() !== req.user._id.toString() &&
-      req.user.role !== 'admin'
-    ) {
+    // Allow access if the user is the client, the provider, or an admin
+    
+    // Get the user from the booking
+    const bookingUser = await User.findById(booking.userId);
+    const bookingProvider = await User.findById(booking.providerId);
+    
+    console.log('Booking User Firebase UID:', bookingUser?.firebaseUid);
+    console.log('Booking Provider Firebase UID:', bookingProvider?.firebaseUid);
+    
+    // Check if the current user is the client, provider, or admin
+    const isClient = bookingUserIdStr === userIdStr || 
+                     (bookingUser && bookingUser.firebaseUid === req.user.firebaseUid);
+    
+    const isProvider = bookingProviderIdStr === userIdStr || 
+                       (bookingProvider && bookingProvider.firebaseUid === req.user.firebaseUid);
+    
+    const isAdmin = req.user.role === 'admin';
+    
+    console.log('Is Client:', isClient);
+    console.log('Is Provider:', isProvider);
+    console.log('Is Admin:', isAdmin);
+    
+    if (!isClient && !isProvider && !isAdmin) {
+      console.log('Access denied: User is not authorized to view this booking');
       return next(createError.forbidden('You are not authorized to view this booking'));
     }
 
@@ -285,18 +349,31 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
       return next(createError.notFound('Booking not found'));
     }
 
+    // Get the user and provider from the booking
+    const bookingUser = await User.findById(booking.userId);
+    const bookingProvider = await User.findById(booking.providerId);
+    
+    // Check if the current user is the client, provider, or admin
+    const isClient = booking.userId.toString() === req.user._id.toString() || 
+                     (bookingUser && bookingUser.firebaseUid === req.user.firebaseUid);
+    
+    const isProvider = booking.providerId.toString() === req.user._id.toString() || 
+                       (bookingProvider && bookingProvider.firebaseUid === req.user.firebaseUid);
+    
+    const isAdmin = req.user.role === 'admin';
+    
     // Check authorization based on the status change
-    if (req.user.role !== 'admin') {
+    if (!isAdmin) {
       // Providers can confirm, start, or complete bookings
       if (['confirmed', 'in-progress', 'completed'].includes(status)) {
-        if (booking.providerId.toString() !== req.user._id.toString()) {
+        if (!isProvider) {
           return next(createError.forbidden('Only the provider can update this booking status'));
         }
       }
       
       // Users can only cancel their own bookings
       if (status === 'cancelled') {
-        if (booking.userId.toString() !== req.user._id.toString()) {
+        if (!isClient) {
           return next(createError.forbidden('Only the user who made the booking can cancel it'));
         }
         
@@ -322,6 +399,38 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
         { bookingId: booking._id },
         { status: 'cancelled' }
       );
+    }
+
+    // Send booking notification
+    try {
+      // Get service name
+      const bookingWithService = await Booking.findById(req.params.id).populate('serviceId');
+      if (bookingWithService && bookingWithService.serviceId) {
+        const serviceName = (bookingWithService.serviceId as any).title;
+        
+        await notificationService.createBookingNotification(
+          booking.userId.toString(),
+          booking.providerId.toString(),
+          req.params.id,
+          status as 'confirmed' | 'started' | 'completed' | 'cancelled',
+          serviceName
+        );
+        console.log(`Booking notification sent for status update to ${status}: ${req.params.id}`);
+        
+        // Emit socket event for booking status change
+        if (io) {
+          io.emit('booking-status-changed', { 
+            bookingId: req.params.id, 
+            status,
+            userId: booking.userId.toString(),
+            providerId: booking.providerId.toString()
+          });
+          console.log(`Socket event emitted for booking status change to ${status}: ${req.params.id}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send booking notification:', error);
+      // Don't throw error here, as we still want to return the booking
     }
 
     // Get updated booking with populated fields
@@ -367,10 +476,16 @@ export const cancelBooking = async (req: Request, res: Response, next: NextFunct
     }
 
     // Check if user is authorized to cancel this booking
-    if (
-      booking.userId.toString() !== req.user._id.toString() && 
-      req.user.role !== 'admin'
-    ) {
+    // Get the user from the booking
+    const bookingUser = await User.findById(booking.userId);
+    
+    // Check if the current user is the client or admin
+    const isClient = booking.userId.toString() === req.user._id.toString() || 
+                     (bookingUser && bookingUser.firebaseUid === req.user.firebaseUid);
+    
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isClient && !isAdmin) {
       return next(createError.forbidden('You are not authorized to cancel this booking'));
     }
 
@@ -388,6 +503,38 @@ export const cancelBooking = async (req: Request, res: Response, next: NextFunct
       { bookingId: booking._id },
       { status: 'cancelled' }
     );
+
+    // Send booking notification
+    try {
+      // Get service name
+      const bookingWithService = await Booking.findById(req.params.id).populate('serviceId');
+      if (bookingWithService && bookingWithService.serviceId) {
+        const serviceName = (bookingWithService.serviceId as any).title;
+        
+        await notificationService.createBookingNotification(
+          booking.userId.toString(),
+          booking.providerId.toString(),
+          req.params.id,
+          'cancelled',
+          serviceName
+        );
+        console.log(`Booking notification sent for cancellation: ${req.params.id}`);
+        
+        // Emit socket event for booking cancellation
+        if (io) {
+          io.emit('booking-status-changed', { 
+            bookingId: req.params.id, 
+            status: 'cancelled',
+            userId: booking.userId.toString(),
+            providerId: booking.providerId.toString()
+          });
+          console.log(`Socket event emitted for booking cancellation: ${req.params.id}`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send booking notification:', error);
+      // Don't throw error here, as we still want to return the success message
+    }
 
     res.status(200).json({
       status: 'success',

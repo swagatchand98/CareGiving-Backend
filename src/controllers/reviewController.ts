@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { Review, Booking, User, Notification } from '../models/db';
 import { createError } from '../middleware/errorHandler';
+import * as notificationService from '../services/notificationService';
 
 /**
  * @desc    Create a review for a completed booking
@@ -58,14 +59,19 @@ export const createReview = async (req: Request, res: Response, next: NextFuncti
       comment: comment || ''
     });
 
-    // Create notification for provider
-    await Notification.create({
-      userId: booking.providerId,
-      type: 'review',
-      content: `You received a ${rating}-star review from a client`,
-      relatedEntityId: review._id?.toString(),
-      isRead: false
-    });
+    // Get user details for notification
+    const user = await User.findById(req.user._id).select('firstName lastName');
+    const reviewerName = `${user?.firstName} ${user?.lastName}`;
+
+    // Send notification to provider
+    await notificationService.createReviewNotification(
+      booking.providerId.toString(),
+      req.user._id.toString(),
+      rating,
+      review._id instanceof mongoose.Types.ObjectId 
+        ? review._id.toString() 
+        : String(review._id)
+    );
 
     // Calculate provider's average rating
     const providerReviews = await Review.find({ providerId: booking.providerId });
