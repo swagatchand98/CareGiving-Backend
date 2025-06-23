@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import { TimeSlot, Service, User } from '../models/db';
+import { TimeSlot, TimeSlotSegment, Service, User } from '../models/db';
 import { createError } from '../middleware/errorHandler';
 
 /**
@@ -52,6 +52,24 @@ export const createTimeSlots = async (req: Request, res: Response, next: NextFun
         return next(createError.badRequest('Time must be in HH:MM format'));
       }
 
+      // Get service details to check duration
+      const serviceDetails = await Service.findById(serviceId);
+      if (!serviceDetails || !serviceDetails.duration) {
+        return next(createError.badRequest('Service duration is required'));
+      }
+
+      // Calculate time slot duration in minutes
+      const startParts = startTime.split(':').map(Number);
+      const endParts = endTime.split(':').map(Number);
+      const startMinutes = startParts[0] * 60 + startParts[1];
+      const endMinutes = endParts[0] * 60 + endParts[1];
+      const slotDuration = endMinutes - startMinutes;
+
+      // Check if time slot is long enough for the service
+      if (slotDuration < serviceDetails.duration) {
+        return next(createError.badRequest(`Time slot must be at least ${serviceDetails.duration} minutes long for this service`));
+      }
+
       // Create time slot
       try {
         const timeSlot = await TimeSlot.create({
@@ -63,6 +81,36 @@ export const createTimeSlots = async (req: Request, res: Response, next: NextFun
           isBooked: false
         });
         timeSlots.push(timeSlot);
+
+        // Calculate number of segments based on service duration
+        const numSegments = Math.floor(slotDuration / serviceDetails.duration);
+        
+        // Create segments for the time slot
+        const segments = [];
+        for (let i = 0; i < numSegments; i++) {
+          const segmentStartMinutes = startMinutes + (i * serviceDetails.duration);
+          const segmentEndMinutes = segmentStartMinutes + serviceDetails.duration;
+          
+          const segmentStartHours = Math.floor(segmentStartMinutes / 60);
+          const segmentStartMins = segmentStartMinutes % 60;
+          const segmentEndHours = Math.floor(segmentEndMinutes / 60);
+          const segmentEndMins = segmentEndMinutes % 60;
+          
+          const formattedSegmentStart = `${segmentStartHours.toString().padStart(2, '0')}:${segmentStartMins.toString().padStart(2, '0')}`;
+          const formattedSegmentEnd = `${segmentEndHours.toString().padStart(2, '0')}:${segmentEndMins.toString().padStart(2, '0')}`;
+          
+          const segment = await TimeSlotSegment.create({
+            timeSlotId: timeSlot._id,
+            segmentIndex: i,
+            startTime: formattedSegmentStart,
+            endTime: formattedSegmentEnd,
+            isBooked: false
+          });
+          
+          segments.push(segment);
+        }
+        
+        console.log(`Created ${segments.length} segments for time slot ${timeSlot._id}`);
       } catch (error) {
         // Handle duplicate time slot error
         if (error instanceof Error && 'code' in error && error.code === 11000) {
@@ -101,8 +149,8 @@ export const getServiceTimeSlots = async (req: Request, res: Response, next: Nex
 
     // Build query
     const query: any = { 
-      serviceId,
-      isBooked: false
+      serviceId
+      // Remove isBooked: false to get all time slots, even partially booked ones
     };
 
     // Filter by specific date or date range
@@ -139,8 +187,53 @@ export const getServiceTimeSlots = async (req: Request, res: Response, next: Nex
         select: 'firstName lastName profilePicture'
       });
 
+    // Get all time slot IDs
+    const timeSlotIds = timeSlots.map(slot => slot._id);
+
+    // Get all segments for all time slots
+    const segments = await TimeSlotSegment.find({
+      timeSlotId: { $in: timeSlotIds }
+    }).sort({ segmentIndex: 1 });
+    
+    console.log(`Found ${segments.length} segments for time slots`);
+    // Log a sample segment to check its properties
+    if (segments.length > 0) {
+      console.log('Sample segment:', JSON.stringify(segments[0].toObject()));
+    }
+
+    // Group segments by time slot ID
+    const segmentsByTimeSlot = segments.reduce((acc: any, segment) => {
+      const timeSlotId = segment.timeSlotId.toString();
+      if (!acc[timeSlotId]) {
+        acc[timeSlotId] = [];
+      }
+      acc[timeSlotId].push(segment);
+      return acc;
+    }, {});
+
+    // Add segments to time slots
+    const timeSlotsWithSegments = timeSlots.map(slot => {
+      const slotObj = slot.toObject();
+      const slotId = slot._id instanceof mongoose.Types.ObjectId ? slot._id.toString() : String(slot._id);
+      slotObj.segments = segmentsByTimeSlot[slotId] || [];
+      return slotObj;
+    });
+
+    // Filter out time slots where all segments are booked
+    const availableTimeSlots = timeSlotsWithSegments.filter(slot => {
+      // If the slot has no segments, it's not available
+      if (!slot.segments || slot.segments.length === 0) {
+        return false;
+      }
+      
+      // Check if at least one segment is available
+      return slot.segments.some(segment => !segment.isBooked);
+    });
+    
+    console.log(`Filtered out ${timeSlotsWithSegments.length - availableTimeSlots.length} fully booked time slots`);
+    
     // Group time slots by date
-    const groupedSlots = timeSlots.reduce((acc: any, slot) => {
+    const groupedSlots = availableTimeSlots.reduce((acc: any, slot) => {
       const dateStr = slot.date.toISOString().split('T')[0];
       if (!acc[dateStr]) {
         acc[dateStr] = [];
@@ -224,8 +317,34 @@ export const getProviderTimeSlots = async (req: Request, res: Response, next: Ne
         }
       });
 
+    // Get all time slot IDs
+    const timeSlotIds = timeSlots.map(slot => slot._id);
+
+    // Get segments for all time slots
+    const segments = await TimeSlotSegment.find({
+      timeSlotId: { $in: timeSlotIds }
+    }).sort({ segmentIndex: 1 });
+
+    // Group segments by time slot ID
+    const segmentsByTimeSlot = segments.reduce((acc: any, segment) => {
+      const timeSlotId = segment.timeSlotId.toString();
+      if (!acc[timeSlotId]) {
+        acc[timeSlotId] = [];
+      }
+      acc[timeSlotId].push(segment);
+      return acc;
+    }, {});
+
+    // Add segments to time slots
+    const timeSlotsWithSegments = timeSlots.map(slot => {
+      const slotObj = slot.toObject();
+      const slotId = slot._id instanceof mongoose.Types.ObjectId ? slot._id.toString() : String(slot._id);
+      slotObj.segments = segmentsByTimeSlot[slotId] || [];
+      return slotObj;
+    });
+
     // Group time slots by date
-    const groupedSlots = timeSlots.reduce((acc: any, slot) => {
+    const groupedSlots = timeSlotsWithSegments.reduce((acc: any, slot) => {
       const dateStr = slot.date.toISOString().split('T')[0];
       if (!acc[dateStr]) {
         acc[dateStr] = [];
@@ -320,6 +439,9 @@ export const deleteTimeSlot = async (req: Request, res: Response, next: NextFunc
       return next(createError.badRequest('Cannot delete a booked time slot'));
     }
 
+    // Delete time slot segments first
+    await TimeSlotSegment.deleteMany({ timeSlotId: id });
+    
     // Delete time slot
     await TimeSlot.findByIdAndDelete(id);
 
@@ -340,11 +462,16 @@ export const deleteTimeSlot = async (req: Request, res: Response, next: NextFunc
 export const bookTimeSlot = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const { address, specialInstructions } = req.body;
+    const { address, specialInstructions, segmentIndex, segmentStart, segmentEnd } = req.body;
 
     // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
+    }
+
+    // Validate required parameters
+    if (segmentIndex === undefined && !segmentStart && !segmentEnd) {
+      return next(createError.badRequest('A segment index or segment time range is required'));
     }
 
     // Find time slot
@@ -357,6 +484,76 @@ export const bookTimeSlot = async (req: Request, res: Response, next: NextFuncti
     if (timeSlot.isBooked) {
       return next(createError.badRequest('This time slot is already booked'));
     }
+    
+    // Find the requested segment
+    let selectedSegment = null;
+    
+    if (segmentIndex !== undefined) {
+      // Find the segment by index
+      selectedSegment = await TimeSlotSegment.findOne({
+        timeSlotId: id,
+        segmentIndex: segmentIndex
+      });
+      
+      // If segment doesn't exist, create it on the fly
+      if (!selectedSegment) {
+        console.log(`Segment with index ${segmentIndex} not found, creating it dynamically`);
+        
+        // Get service details to calculate duration
+        const service = await Service.findById(timeSlot.serviceId);
+        if (!service || !service.duration) {
+          return next(createError.badRequest('Service duration is required'));
+        }
+        
+        // Calculate segment times
+        const [startHours, startMinutes] = timeSlot.startTime.split(':').map(Number);
+        const startTotalMinutes = startHours * 60 + startMinutes;
+        
+        const segmentStartMinutes = startTotalMinutes + (segmentIndex * service.duration);
+        const segmentEndMinutes = segmentStartMinutes + service.duration;
+        
+        const segmentStartHours = Math.floor(segmentStartMinutes / 60);
+        const segmentStartMins = segmentStartMinutes % 60;
+        const segmentEndHours = Math.floor(segmentEndMinutes / 60);
+        const segmentEndMins = segmentEndMinutes % 60;
+        
+        const formattedSegmentStart = `${segmentStartHours.toString().padStart(2, '0')}:${segmentStartMins.toString().padStart(2, '0')}`;
+        const formattedSegmentEnd = `${segmentEndHours.toString().padStart(2, '0')}:${segmentEndMins.toString().padStart(2, '0')}`;
+        
+        // Create the segment
+        selectedSegment = await TimeSlotSegment.create({
+          timeSlotId: id,
+          segmentIndex: segmentIndex,
+          startTime: formattedSegmentStart,
+          endTime: formattedSegmentEnd,
+          isBooked: false,
+          isReserved: false
+        });
+        
+        console.log(`Created segment dynamically:`, selectedSegment);
+      }
+      
+      if (selectedSegment.isBooked) {
+        return next(createError.badRequest('This segment is already booked'));
+      }
+    } else if (segmentStart && segmentEnd) {
+      // Find the segment by time range
+      selectedSegment = await TimeSlotSegment.findOne({
+        timeSlotId: id,
+        startTime: segmentStart,
+        endTime: segmentEnd,
+        isBooked: false,
+        isReserved: false
+      });
+      
+      if (!selectedSegment) {
+        return next(createError.notFound('No available segment found for the specified time range'));
+      }
+    }
+    
+    if (!selectedSegment) {
+      return next(createError.badRequest('A valid segment must be specified for booking'));
+    }
 
     // Get service details
     const service = await Service.findById(timeSlot.serviceId);
@@ -364,9 +561,12 @@ export const bookTimeSlot = async (req: Request, res: Response, next: NextFuncti
       return next(createError.notFound('Service not found'));
     }
 
-    // Calculate duration in minutes
-    const startParts = timeSlot.startTime.split(':').map(Number);
-    const endParts = timeSlot.endTime.split(':').map(Number);
+    // Calculate duration in minutes using the segment's times
+    const startTime = selectedSegment.startTime;
+    const endTime = selectedSegment.endTime;
+    
+    const startParts = startTime.split(':').map(Number);
+    const endParts = endTime.split(':').map(Number);
     const startMinutes = startParts[0] * 60 + startParts[1];
     const endMinutes = endParts[0] * 60 + endParts[1];
     const duration = endMinutes - startMinutes;
@@ -379,29 +579,57 @@ export const bookTimeSlot = async (req: Request, res: Response, next: NextFuncti
       // Convert duration from minutes to hours and multiply by hourly rate
       totalPrice = service.price.amount * (duration / 60);
     }
+    
+    // Ensure minimum price for Stripe ($0.50 USD)
+    if (totalPrice < 0.5) {
+      totalPrice = 0.5;
+      console.log('Adjusted price to minimum $0.50 for Stripe');
+    }
 
     // Validate address
     if (!address || !address.street || !address.city || !address.state || !address.zipCode) {
       return next(createError.badRequest('Complete address is required'));
     }
 
-    // Create booking
+    // Create booking with reserved status
+    // Using 'reserved' status to indicate that the booking is not yet confirmed
+    // and should not trigger notifications to the provider
     const booking = await mongoose.model('Booking').create({
       serviceId: service._id,
       userId: req.user._id,
       providerId: timeSlot.providerId,
       dateTime: new Date(`${timeSlot.date.toISOString().split('T')[0]}T${timeSlot.startTime}:00`),
       duration,
-      status: 'pending',
+      status: 'reserved', // Use 'reserved' status instead of 'pending'
       address,
       specialInstructions: specialInstructions || '',
       totalPrice
     });
 
-    // Update time slot with booking info
-    timeSlot.isBooked = true;
-    timeSlot.bookingId = booking._id;
-    await timeSlot.save();
+    // Mark the segment as temporarily reserved, but not fully booked yet
+    // It will be marked as fully booked only after payment confirmation
+    selectedSegment.isReserved = true;
+    selectedSegment.isBooked = false; // Ensure it's not marked as booked yet
+    selectedSegment.bookingId = booking._id;
+    await selectedSegment.save();
+    
+    console.log(`Segment ${selectedSegment._id} marked as reserved for booking ${booking._id}`);
+    
+    // Check if all segments are now booked or reserved
+    const allSegments = await TimeSlotSegment.find({ timeSlotId: id });
+    const allBooked = allSegments.every(segment => segment.isBooked);
+    const allReservedOrBooked = allSegments.every(segment => segment.isBooked || segment.isReserved);
+    
+    // Update the parent time slot's status if all segments are reserved or booked
+    if (allReservedOrBooked) {
+      timeSlot.isReserved = true;
+      await timeSlot.save();
+      console.log(`All segments reserved or booked, marking time slot ${timeSlot._id} as reserved`);
+    }
+    
+    // We don't mark the segment as fully booked until payment is confirmed
+    // If payment is cancelled, the segment will be marked as available again
+    // This is handled in the payment confirmation webhook
 
     // Create a pending transaction record
     await mongoose.model('Transaction').create({

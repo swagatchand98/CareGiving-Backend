@@ -7,17 +7,19 @@ import { formatCurrency } from '../utils/helpers';
  * @param userId - User ID
  * @param amount - Payment amount
  * @param bookingId - Booking ID
+ * @param customMessage - Optional custom message
  * @returns Created notification
  */
 export const createPaymentNotification = async (
   providerId: string,
   userId: string,
   amount: number,
-  bookingId: string
+  bookingId: string,
+  customMessage?: string
 ) => {
   try {
     const formattedAmount = formatCurrency(amount);
-    const content = `You have received a payment of $${formattedAmount} for booking #${bookingId}.`;
+    const content = customMessage || `You have received a payment of $${formattedAmount} for booking #${bookingId}.`;
     
     return await notificationService.createNotification(
       providerId,

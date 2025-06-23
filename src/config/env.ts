@@ -22,10 +22,14 @@ export const config = {
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
   STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
+  
+  // Stripe Connect configuration
+  STRIPE_CONNECT_CLIENT_ID: process.env.STRIPE_CONNECT_CLIENT_ID || '',
+  STRIPE_CONNECT_WEBHOOK_SECRET: process.env.STRIPE_CONNECT_WEBHOOK_SECRET || '',
 };
 
 export function loadEnvironmentVariables() {
-  const requiredVars = ['DATABASE_URL', 'JWT_SECRET', 'STRIPE_SECRET_KEY'];
+  const requiredVars = ['DATABASE_URL', 'JWT_SECRET', 'STRIPE_SECRET_KEY', 'STRIPE_CONNECT_CLIENT_ID'];
   const missingVars = requiredVars.filter(varName => !config[varName as keyof typeof config]);
   
   if (missingVars.length > 0) {
@@ -40,5 +44,10 @@ export function loadEnvironmentVariables() {
   // Warn about missing Stripe webhook secret
   if (!config.STRIPE_WEBHOOK_SECRET) {
     console.warn('Stripe webhook secret is not defined. Webhook verification will not work properly.');
+  }
+  
+  // Warn about missing Stripe Connect webhook secret
+  if (!config.STRIPE_CONNECT_WEBHOOK_SECRET) {
+    console.warn('Stripe Connect webhook secret is not defined. Connect webhook verification will not work properly.');
   }
 }

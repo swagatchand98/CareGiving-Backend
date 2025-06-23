@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import { Booking, Service, User, Transaction } from '../models/db';
+import { Booking, Service, User, Transaction, TimeSlotSegment } from '../models/db';
 import { createError } from '../middleware/errorHandler';
 import * as notificationService from '../services/notificationService';
+import * as paymentService from '../services/paymentService';
 import { Server as SocketIOServer } from 'socket.io';
 
 // Socket.io instance
@@ -75,21 +76,27 @@ export const createBooking = async (req: Request, res: Response, next: NextFunct
       status: 'pending'
     });
 
-    // Send booking notification
-    try {
-      const bookingId = booking._id as mongoose.Types.ObjectId;
-      const serviceName = service.title;
-      await notificationService.createBookingNotification(
-        req.user._id.toString(),
-        providerId.toString(),
-        bookingId.toString(),
-        'created',
-        serviceName
-      );
-      console.log(`Booking notification sent for new booking: ${bookingId.toString()}`);
-    } catch (error) {
-      console.error('Failed to send booking notification:', error);
-      // Don't throw error here, as we still want to return the booking
+    // Send booking notification only if the status is not 'reserved'
+    // 'reserved' status means the booking is not yet confirmed with payment
+    // and we don't want to notify the provider yet
+    if (booking.status !== 'reserved') {
+      try {
+        const bookingId = booking._id as mongoose.Types.ObjectId;
+        const serviceName = service.title;
+        await notificationService.createBookingNotification(
+          req.user._id.toString(),
+          providerId.toString(),
+          bookingId.toString(),
+          'created',
+          serviceName
+        );
+        console.log(`Booking notification sent for new booking: ${bookingId.toString()}`);
+      } catch (error) {
+        console.error('Failed to send booking notification:', error);
+        // Don't throw error here, as we still want to return the booking
+      }
+    } else {
+      console.log(`Booking ${booking._id} is in 'reserved' status. No notification sent to provider.`);
     }
 
     // Populate service and provider details for response
@@ -212,6 +219,28 @@ export const getProviderBookings = async (req: Request, res: Response, next: Nex
       .skip(skip)
       .limit(limit)
       .sort({ dateTime: -1 });
+    
+    // Find the timeslot segments for each booking
+    const bookingsWithSegments = await Promise.all(bookings.map(async (booking) => {
+      const bookingObj = booking.toObject();
+      
+      // Find the timeslot segment for this booking
+      const segment = await TimeSlotSegment.findOne({ bookingId: booking._id });
+      
+      if (segment) {
+        // Add the segment information to the booking using type assertion
+        (bookingObj as any).timeSlotSegment = {
+          _id: segment._id,
+          timeSlotId: segment.timeSlotId,
+          startTime: segment.startTime,
+          endTime: segment.endTime,
+          isBooked: segment.isBooked,
+          isReserved: segment.isReserved
+        };
+      }
+      
+      return bookingObj;
+    }));
 
     const total = await Booking.countDocuments(query);
 
@@ -221,7 +250,7 @@ export const getProviderBookings = async (req: Request, res: Response, next: Nex
       total,
       page,
       totalPages: Math.ceil(total / limit),
-      data: { bookings }
+      data: { bookings: bookingsWithSegments }
     });
   } catch (error) {
     next(error);
@@ -307,10 +336,27 @@ export const getBookingById = async (req: Request, res: Response, next: NextFunc
     // Get transaction details
     const transaction = await Transaction.findOne({ bookingId: booking._id });
 
+    // Find the timeslot segment for this booking
+    const segment = await TimeSlotSegment.findOne({ bookingId: booking._id });
+    
+    // Convert booking to object and add segment information if available
+    const bookingObj = booking.toObject();
+    if (segment) {
+      // Use type assertion to avoid TypeScript error
+      (bookingObj as any).timeSlotSegment = {
+        _id: segment._id,
+        timeSlotId: segment.timeSlotId,
+        startTime: segment.startTime,
+        endTime: segment.endTime,
+        isBooked: segment.isBooked,
+        isReserved: segment.isReserved
+      };
+    }
+
     res.status(200).json({
       status: 'success',
       data: { 
-        booking,
+        booking: bookingObj,
         transaction
       }
     });
@@ -394,6 +440,15 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
         { bookingId: booking._id },
         { status: 'completed' }
       );
+      
+      // Release funds to provider when booking is completed
+      try {
+        const payment = await paymentService.releaseProviderFunds(req.params.id);
+        console.log(`Funds released for booking ${req.params.id}:`, payment ? 'success' : 'no payment found');
+      } catch (error) {
+        console.error('Error releasing funds to provider:', error);
+        // Don't throw error here, as we still want to return the booking
+      }
     } else if (status === 'cancelled') {
       await Transaction.findOneAndUpdate(
         { bookingId: booking._id },

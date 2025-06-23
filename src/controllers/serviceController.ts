@@ -71,12 +71,54 @@ export const createService = async (req: Request, res: Response, next: NextFunct
       }
     }
 
+    // Process uploaded files
+    let images: string[] = [];
+    let mediaFiles: { url: string; type: string; name?: string }[] = [];
+
+    if (req.body.s3Urls) {
+      // S3 URLs are available
+      images = req.body.s3Urls;
+      
+      // Process files to determine their type (image or video)
+      if (req.files && Array.isArray(req.files)) {
+        const files = req.files as Express.Multer.File[];
+        
+        mediaFiles = req.body.s3Urls.map((url: string, index: number) => {
+          const file = files[index];
+          const fileType = file.mimetype.startsWith('image/') ? 'image' : 
+                          file.mimetype.startsWith('video/') ? 'video' : 'document';
+          
+          return {
+            url: url,
+            type: fileType,
+            name: file.originalname
+          };
+        });
+      }
+    } else if (req.files) {
+      // Local file paths
+      const files = req.files as Express.Multer.File[];
+      images = files.map(file => file.path);
+      
+      mediaFiles = files.map(file => {
+        const fileType = file.mimetype.startsWith('image/') ? 'image' : 
+                        file.mimetype.startsWith('video/') ? 'video' : 'document';
+        
+        return {
+          url: file.path,
+          type: fileType,
+          name: file.originalname
+        };
+      });
+    }
+
     const serviceData = {
         providerId: userId,
         categoryId: req.body.categoryId,
         title: req.body.title,
         description: req.body.description,
-        images: req.files ? (req.files as Express.Multer.File[]).map(file => file.path) : [],
+        images: images, // For backward compatibility
+        mediaFiles: mediaFiles, // New field with type information
         price: {
           amount: req.body.priceAmount,
           type: req.body.priceType || 'fixed'
@@ -253,7 +295,52 @@ export const updateService = async (req: Request, res: Response, next: NextFunct
     if (req.body.title) updateData.title = req.body.title;
     if (req.body.description) updateData.description = req.body.description;
     if (req.body.categoryId) updateData.categoryId = req.body.categoryId;
-    if (req.files) updateData.images = (req.files as Express.Multer.File[]).map(file => file.path);
+    
+    // Process uploaded files
+    if (req.body.s3Urls || req.files) {
+      let images: string[] = [];
+      let mediaFiles: { url: string; type: string; name?: string }[] = [];
+
+      if (req.body.s3Urls) {
+        // S3 URLs are available
+        images = req.body.s3Urls;
+        
+        // Process files to determine their type (image or video)
+        if (req.files && Array.isArray(req.files)) {
+          const files = req.files as Express.Multer.File[];
+          
+          mediaFiles = req.body.s3Urls.map((url: string, index: number) => {
+            const file = files[index];
+            const fileType = file.mimetype.startsWith('image/') ? 'image' : 
+                            file.mimetype.startsWith('video/') ? 'video' : 'document';
+            
+            return {
+              url: url,
+              type: fileType,
+              name: file.originalname
+            };
+          });
+        }
+      } else if (req.files) {
+        // Local file paths
+        const files = req.files as Express.Multer.File[];
+        images = files.map(file => file.path);
+        
+        mediaFiles = files.map(file => {
+          const fileType = file.mimetype.startsWith('image/') ? 'image' : 
+                          file.mimetype.startsWith('video/') ? 'video' : 'document';
+          
+          return {
+            url: file.path,
+            type: fileType,
+            name: file.originalname
+          };
+        });
+      }
+
+      updateData.images = images; // For backward compatibility
+      updateData.mediaFiles = mediaFiles; // New field with type information
+    }
     
     if (req.body.priceAmount || req.body.priceType) {
       updateData.price = {

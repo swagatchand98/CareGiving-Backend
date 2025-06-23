@@ -9,6 +9,13 @@ export enum PaymentStatus {
   PARTIALLY_REFUNDED = 'partially_refunded'
 }
 
+// Define the payment release status enum
+export enum PaymentReleaseStatus {
+  HELD = 'held',
+  RELEASED = 'released',
+  PAID_OUT = 'paid_out'
+}
+
 // Define the payment type enum
 export enum PaymentType {
   BOOKING = 'booking',
@@ -24,12 +31,18 @@ export interface IPayment extends Document {
   amount: number;
   platformFee: number;
   providerAmount: number;
+  taxAmount: number;
+  stripeFee: number;
   currency: string;
   status: PaymentStatus;
   type: PaymentType;
+  releaseStatus: PaymentReleaseStatus;
+  releaseDate?: Date;
+  paidOutDate?: Date;
   stripePaymentIntentId?: string;
   stripeRefundId?: string;
   stripeTransferId?: string;
+  stripeConnectAccountId?: string;
   refundAmount?: number;
   refundReason?: string;
   metadata?: Record<string, any>;
@@ -70,6 +83,16 @@ const PaymentSchema: Schema = new Schema(
       required: true,
       min: 0
     },
+    taxAmount: {
+      type: Number,
+      required: true,
+      default: 0
+    },
+    stripeFee: {
+      type: Number,
+      required: true,
+      default: 0
+    },
     currency: {
       type: String,
       required: true,
@@ -94,6 +117,20 @@ const PaymentSchema: Schema = new Schema(
     },
     stripeTransferId: {
       type: String
+    },
+    stripeConnectAccountId: {
+      type: String
+    },
+    releaseStatus: {
+      type: String,
+      enum: Object.values(PaymentReleaseStatus),
+      default: PaymentReleaseStatus.HELD
+    },
+    releaseDate: {
+      type: Date
+    },
+    paidOutDate: {
+      type: Date
     },
     refundAmount: {
       type: Number,

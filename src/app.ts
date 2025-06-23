@@ -9,6 +9,7 @@ import authRoutes from './routes/authRoutes';
 import serviceRoutes from './routes/serviceRoutes';
 import bookingRoutes from './routes/bookingRoutes';
 import adminRoutes from './routes/adminRoutes';
+import adminAuthRoutes from './routes/adminAuthRoutes';
 import timeSlotRoutes from './routes/timeSlotRoutes';
 import walletRoutes from './routes/walletRoutes';
 import reviewRoutes from './routes/reviewRoutes';
@@ -18,6 +19,8 @@ import addressRoutes from './routes/addressRoutes';
 import chatRoutes from './routes/chatRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import paymentRoutes from './routes/paymentRoutes';
+import providerEarningsRoutes from './routes/providerEarningsRoutes';
+import providerConnectRoutes from './routes/providerConnectRoutes';
 import { connectDatabase } from './config/database';
 import { loadEnvironmentVariables } from './config/env';
 import './config/firebase-admin'; // Initialize Firebase Admin SDK
@@ -208,6 +211,7 @@ class App {
     this.express.use('/api/v1/services', serviceRoutes);
     this.express.use('/api/v1/bookings', bookingRoutes);
     this.express.use('/api/v1/admin', adminRoutes);
+    this.express.use('/api/v1/admin/auth', adminAuthRoutes);
     this.express.use('/api/v1/timeslots', timeSlotRoutes);
     this.express.use('/api/v1/wallet', walletRoutes);
     this.express.use('/api/v1/reviews', reviewRoutes);
@@ -217,6 +221,49 @@ class App {
     this.express.use('/api/v1/chats', chatRoutes);
     this.express.use('/api/v1/notifications', notificationRoutes);
     this.express.use('/api/v1/payments', paymentRoutes);
+    
+    // Provider specific routes
+    this.express.use('/api/v1/providers/earnings', providerEarningsRoutes);
+    
+    // Provider connect routes - ensure these are registered after the main provider routes
+    this.express.use('/api/v1/providers/connect', providerConnectRoutes);
+    
+    // Debug route to check if provider connect routes are registered
+    this.express.get('/api/v1/debug/routes', (req: Request, res: Response) => {
+      const routes: any[] = [];
+      
+      // @ts-ignore - _router is not in the type definitions but exists at runtime
+      this.express._router.stack.forEach((middleware: any) => {
+        if (middleware.route) {
+          // Routes registered directly on the app
+          routes.push({
+            path: middleware.route.path,
+            methods: Object.keys(middleware.route.methods)
+          });
+        } else if (middleware.name === 'router') {
+          // Router middleware
+          middleware.handle.stack.forEach((handler: any) => {
+            if (handler.route) {
+              const path = handler.route.path;
+              const baseUrl = middleware.regexp.toString()
+                .replace('\\^', '')
+                .replace('\\/?(?=\\/|$)', '')
+                .replace(/\\\//g, '/');
+              
+              routes.push({
+                path: baseUrl + path,
+                methods: Object.keys(handler.route.methods)
+              });
+            }
+          });
+        }
+      });
+      
+      res.status(200).json({
+        routes,
+        connectRoutesRegistered: routes.some(r => r.path.includes('/api/v1/providers/connect'))
+      });
+    });
 
     // 404 handler for undefined routes
     this.express.use('*', (req: Request, res: Response) => {

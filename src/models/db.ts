@@ -71,6 +71,13 @@ interface IPrice {
   type: 'hourly' | 'fixed';
 }
 
+// Media File Interface
+interface IMediaFile {
+  url: string;
+  type: 'image' | 'video' | 'document';
+  name?: string;
+}
+
 // Additional Details Interface
 interface IAdditionalDetails {
   specialRequirements?: string;
@@ -83,7 +90,8 @@ interface IService extends Document {
   categoryId: mongoose.Types.ObjectId;
   title: string;
   description: string;
-  images?: string[];
+  images?: string[];  // Legacy field for backward compatibility
+  mediaFiles?: IMediaFile[];  // New field for better media type handling
   price: IPrice;
   duration?: number;
   additionalDetails?: IAdditionalDetails;
@@ -105,7 +113,7 @@ interface IBooking extends Document {
   providerId: mongoose.Types.ObjectId;
   dateTime: Date;
   duration: number;
-  status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
+  status: 'reserved' | 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
   address: IBookingAddress;
   specialInstructions?: string;
   totalPrice: number;
@@ -192,7 +200,9 @@ interface ITimeSlot extends Document {
   startTime: string;
   endTime: string;
   isBooked: boolean;
+  isReserved: boolean;
   bookingId?: mongoose.Types.ObjectId;
+  segments?: any[]; // Add segments property
   createdAt: Date;
   updatedAt: Date;
 }
@@ -385,7 +395,19 @@ const ServiceSchema: Schema = new Schema<IService>({
     required: true,
     index: 'text' // Add text index for faster text search
   },
-  images: [String],
+  images: [String], // Legacy field for backward compatibility
+  mediaFiles: [{
+    url: {
+      type: String,
+      required: true
+    },
+    type: {
+      type: String,
+      enum: ['image', 'video', 'document'],
+      required: true
+    },
+    name: String
+  }],
   price: {
     amount: {
       type: Number,
@@ -444,7 +466,7 @@ const BookingSchema: Schema = new Schema<IBooking>({
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled'],
+    enum: ['reserved', 'pending', 'confirmed', 'in-progress', 'completed', 'cancelled'],
     default: 'pending'
   },
   address: {
@@ -763,6 +785,10 @@ const TimeSlotSchema: Schema = new Schema<ITimeSlot>({
     type: Boolean,
     default: false
   },
+  isReserved: {
+    type: Boolean,
+    default: false
+  },
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Booking'
@@ -796,6 +822,8 @@ WishlistSchema.index({ userId: 1, serviceId: 1 }, { unique: true });
 // Import models
 import ChatModel from './chatModel';
 import notificationSchema from './notificationModel';
+import TimeSlotSegmentModel from './timeSlotSegmentModel';
+import ProviderConnectAccountModel from './providerConnectAccountModel';
 
 // Create Models
 export const User = mongoose.model<IUser>('User', UserSchema);
@@ -809,5 +837,7 @@ export const Notification = mongoose.model<INotification>('Notification', notifi
 export const Subscription = mongoose.model<ISubscription>('Subscription', SubscriptionSchema);
 export const Wallet = mongoose.model<IWallet>('Wallet', WalletSchema);
 export const TimeSlot = mongoose.model<ITimeSlot>('TimeSlot', TimeSlotSchema);
+export const TimeSlotSegment = TimeSlotSegmentModel;
 export const Wishlist = mongoose.model<IWishlist>('Wishlist', WishlistSchema);
 export const Chat = ChatModel;
+export const ProviderConnectAccount = ProviderConnectAccountModel;

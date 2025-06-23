@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import * as paymentService from '../services/paymentService';
 import { Payment } from '../models/paymentModel';
 import stripe, { calculateRefundAmount } from '../config/stripe';
@@ -79,7 +80,7 @@ export const confirmPayment = async (req: Request, res: Response) => {
     // Confirm payment
     const payment = await paymentService.confirmPayment(paymentIntentId);
 
-    // Update booking status to confirmed
+    // Update booking status to confirmed (from either 'pending' or 'reserved')
     const booking = await Booking.findByIdAndUpdate(
       payment.bookingId, 
       { status: 'confirmed' },
@@ -88,6 +89,44 @@ export const confirmPayment = async (req: Request, res: Response) => {
 
     if (!booking) {
       throw new Error('Booking not found');
+    }
+    
+    // Also mark the segment as booked
+    const TimeSlotSegment = mongoose.model('TimeSlotSegment');
+    const timeSlotSegment = await TimeSlotSegment.findOne({
+      bookingId: booking._id
+    });
+    
+    if (timeSlotSegment) {
+      console.log(`API: Found segment ${timeSlotSegment._id} for booking ${booking._id}, marking as booked`);
+      timeSlotSegment.isBooked = true;
+      timeSlotSegment.isReserved = false; // Clear the reserved flag
+      await timeSlotSegment.save();
+      
+      // Also update the parent time slot if all segments are booked
+      const allSegments = await TimeSlotSegment.find({ timeSlotId: timeSlotSegment.timeSlotId });
+      const allBooked = allSegments.every(seg => seg.isBooked);
+      if (allBooked) {
+        await mongoose.model('TimeSlot').findByIdAndUpdate(timeSlotSegment.timeSlotId, { 
+          isBooked: true,
+          isReserved: false // Clear the reserved flag on the parent time slot
+        });
+        console.log(`API: All segments booked, marking time slot ${timeSlotSegment.timeSlotId} as booked`);
+      } else {
+        // If not all segments are booked, check if the time slot should still be marked as reserved
+        const anyReserved = allSegments.some(seg => seg.isReserved);
+        if (!anyReserved) {
+          // If no segments are reserved, clear the reserved flag on the parent time slot
+          await mongoose.model('TimeSlot').findByIdAndUpdate(timeSlotSegment.timeSlotId, { 
+            isReserved: false 
+          });
+          console.log(`API: No segments reserved, clearing reserved flag on time slot ${timeSlotSegment.timeSlotId}`);
+        }
+      }
+      
+      console.log(`API: Segment ${timeSlotSegment._id} marked as booked for booking ${booking._id}`);
+    } else {
+      console.error(`API: No segment found for booking ${booking._id}`);
     }
 
     // Transfer provider amount to provider's wallet
@@ -390,7 +429,7 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
         const paymentIntent = event.data.object;
         const payment = await paymentService.confirmPayment(paymentIntent.id);
         
-        // Update booking status to confirmed
+        // Update booking status to confirmed (from either 'pending' or 'reserved')
         const booking = await Booking.findByIdAndUpdate(
           payment.bookingId, 
           { status: 'confirmed' },
@@ -398,6 +437,131 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
         );
 
         if (booking) {
+          // Mark the segment as fully booked now that payment is confirmed
+          console.log(`Looking for segment with bookingId: ${booking._id}`);
+          const TimeSlotSegment = mongoose.model('TimeSlotSegment');
+          
+          // Convert booking._id to string to ensure proper comparison
+          const bookingIdStr = booking._id ? booking._id.toString() : '';
+          console.log(`Converted booking ID to string: ${bookingIdStr}`);
+          
+          // First try to find by direct match
+          let timeSlotSegment = await TimeSlotSegment.findOne({
+            bookingId: booking._id
+          });
+          
+          if (timeSlotSegment) {
+            console.log(`Found segment ${timeSlotSegment._id} for booking ${booking._id}, marking as booked`);
+            timeSlotSegment.isBooked = true;
+            timeSlotSegment.isReserved = false; // Clear the reserved flag
+            await timeSlotSegment.save();
+            
+            // Also update the parent time slot if all segments are booked
+            const allSegments = await TimeSlotSegment.find({ timeSlotId: timeSlotSegment.timeSlotId });
+            const allBooked = allSegments.every(seg => seg.isBooked);
+            if (allBooked) {
+              await mongoose.model('TimeSlot').findByIdAndUpdate(timeSlotSegment.timeSlotId, { 
+                isBooked: true,
+                isReserved: false // Clear the reserved flag on the parent time slot
+              });
+              console.log(`All segments booked, marking time slot ${timeSlotSegment.timeSlotId} as booked`);
+            } else {
+              // If not all segments are booked, check if the time slot should still be marked as reserved
+              const anyReserved = allSegments.some(seg => seg.isReserved);
+              if (!anyReserved) {
+                // If no segments are reserved, clear the reserved flag on the parent time slot
+                await mongoose.model('TimeSlot').findByIdAndUpdate(timeSlotSegment.timeSlotId, { 
+                  isReserved: false 
+                });
+                console.log(`No segments reserved, clearing reserved flag on time slot ${timeSlotSegment.timeSlotId}`);
+              }
+            }
+            
+            console.log(`Segment ${timeSlotSegment._id} marked as booked for booking ${booking._id}`);
+          } else {
+            console.error(`No segment found for booking ${booking._id} by direct query`);
+            
+            // Try to find the segment by querying all segments
+            const allSegments = await TimeSlotSegment.find({});
+            console.log(`Found ${allSegments.length} total segments`);
+            
+            // Look for segments with this booking ID as a string
+            const matchingSegments = allSegments.filter(seg => {
+              if (!seg.bookingId) return false;
+              const segBookingIdStr = seg.bookingId.toString();
+              const isMatch = segBookingIdStr === bookingIdStr;
+              console.log(`Comparing segment bookingId ${segBookingIdStr} with ${bookingIdStr}: ${isMatch}`);
+              return isMatch;
+            });
+            
+            if (matchingSegments.length > 0) {
+              console.log(`Found ${matchingSegments.length} matching segments by string comparison`);
+              const segment = matchingSegments[0];
+              segment.isBooked = true;
+              segment.isReserved = false;
+              await segment.save();
+              console.log(`Marked segment ${segment._id} as booked`);
+            } else {
+              console.error(`Could not find any segments for booking ${booking._id}`);
+              
+              // Last resort: try to find by booking ID in the Transaction collection
+              const transaction = await mongoose.model('Transaction').findOne({ bookingId: booking._id });
+              if (transaction) {
+                console.log(`Found transaction for booking ${booking._id}`);
+                
+                // Get the booking to find the time slot
+                const bookingDetails = await mongoose.model('Booking').findById(booking._id);
+                if (bookingDetails) {
+                  console.log(`Found booking details for ${booking._id}`);
+                  
+                  // Find all segments for the service's time slots
+                  const timeSlots = await mongoose.model('TimeSlot').find({ 
+                    serviceId: bookingDetails.serviceId,
+                    providerId: bookingDetails.providerId
+                  });
+                  
+                  if (timeSlots.length > 0) {
+                    console.log(`Found ${timeSlots.length} time slots for the service`);
+                    
+                    // Get all segments for these time slots
+                    const timeSlotIds = timeSlots.map(ts => ts._id);
+                    const serviceSegments = await TimeSlotSegment.find({
+                      timeSlotId: { $in: timeSlotIds }
+                    });
+                    
+                    console.log(`Found ${serviceSegments.length} segments for the service's time slots`);
+                    
+                    // Find a segment that matches the booking time
+                    const bookingDateTime = new Date(bookingDetails.dateTime);
+                    const bookingHours = bookingDateTime.getHours();
+                    const bookingMinutes = bookingDateTime.getMinutes();
+                    const bookingTimeStr = `${bookingHours.toString().padStart(2, '0')}:${bookingMinutes.toString().padStart(2, '0')}`;
+                    
+                    console.log(`Looking for segment with start time around ${bookingTimeStr}`);
+                    
+                    // Find segments with matching start time
+                    const timeMatchingSegments = serviceSegments.filter(seg => 
+                      seg.startTime === bookingTimeStr || 
+                      Math.abs(parseInt(seg.startTime.split(':')[0]) - bookingHours) <= 1
+                    );
+                    
+                    if (timeMatchingSegments.length > 0) {
+                      console.log(`Found ${timeMatchingSegments.length} segments with matching time`);
+                      const segment = timeMatchingSegments[0];
+                      segment.isBooked = true;
+                      segment.isReserved = false;
+                      segment.bookingId = booking._id;
+                      await segment.save();
+                      console.log(`Marked segment ${segment._id} as booked based on time match`);
+                    } else {
+                      console.error(`Could not find any segments with matching time`);
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
           // Transfer provider amount to provider's wallet
           const providerId = payment.providerId.toString();
           const providerAmount = payment.providerAmount;
@@ -433,6 +597,50 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
       case 'payment_intent.payment_failed':
         // Payment failed
         console.log('Payment failed:', event.data.object);
+        
+        // Get the payment intent
+        const failedPaymentIntent = event.data.object;
+        
+        // Find the booking associated with this payment intent
+        const failedPayment = await Payment.findOne({
+          stripePaymentIntentId: failedPaymentIntent.id
+        });
+        
+        if (failedPayment && failedPayment.bookingId) {
+          // Find the segment that was reserved for this booking
+          const reservedSegment = await mongoose.model('TimeSlotSegment').findOne({
+            bookingId: failedPayment.bookingId
+          });
+          
+          if (reservedSegment) {
+            // Mark the segment as available again
+            reservedSegment.isReserved = false;
+            reservedSegment.bookingId = undefined;
+            await reservedSegment.save();
+            console.log(`Segment ${reservedSegment._id} marked as available again after payment failure`);
+            
+            // Check if any segments for this time slot are still reserved
+            const timeSlotId = reservedSegment.timeSlotId;
+            const allSegments = await mongoose.model('TimeSlotSegment').find({ timeSlotId });
+            const anyReserved = allSegments.some(seg => seg.isReserved);
+            
+            if (!anyReserved) {
+              // If no segments are reserved, clear the reserved flag on the parent time slot
+              await mongoose.model('TimeSlot').findByIdAndUpdate(timeSlotId, { 
+                isReserved: false 
+              });
+              console.log(`No segments reserved, clearing reserved flag on time slot ${timeSlotId}`);
+            }
+          }
+          
+          // Update booking status to cancelled
+          await Booking.findByIdAndUpdate(
+            failedPayment.bookingId,
+            { status: 'cancelled' }
+          );
+          
+          console.log(`Booking ${failedPayment.bookingId} cancelled due to payment failure`);
+        }
         break;
 
       case 'charge.refunded':

@@ -9,6 +9,13 @@ const stripe = new Stripe(config.STRIPE_SECRET_KEY, {
 // Platform fee percentage (15%)
 export const PLATFORM_FEE_PERCENTAGE = 15;
 
+// Tax rate percentage (e.g., 7%)
+export const TAX_PERCENTAGE = 7;
+
+// Stripe service fee percentage (typically 2.9% + 30 cents)
+export const STRIPE_FEE_PERCENTAGE = 2.9;
+export const STRIPE_FIXED_FEE = 30; // in cents
+
 // Refund policy based on cancellation timing
 export const REFUND_POLICY = {
   BEFORE_24_HOURS: 90, // 90% refund if cancelled more than 24 hours before
@@ -29,6 +36,28 @@ const webhookSecret = config.STRIPE_WEBHOOK_SECRET;
 // Function to calculate platform fee amount
 export const calculatePlatformFee = (amount: number): number => {
   return Math.round((amount * PLATFORM_FEE_PERCENTAGE) / 100);
+};
+
+// Function to calculate tax amount
+export const calculateTax = (amount: number): number => {
+  return Math.round((amount * TAX_PERCENTAGE) / 100);
+};
+
+// Function to calculate Stripe fee
+export const calculateStripeFee = (amount: number): number => {
+  // Convert amount to cents for calculation
+  const amountInCents = Math.round(amount * 100);
+  const stripeFeeInCents = Math.round((amountInCents * STRIPE_FEE_PERCENTAGE) / 100) + STRIPE_FIXED_FEE;
+  // Convert back to dollars
+  return stripeFeeInCents / 100;
+};
+
+// Function to calculate provider amount
+export const calculateProviderAmount = (amount: number): number => {
+  const platformFee = calculatePlatformFee(amount);
+  const tax = calculateTax(amount);
+  // Provider doesn't pay the Stripe fee directly
+  return amount - platformFee - tax;
 };
 
 // Function to calculate refund amount based on cancellation time

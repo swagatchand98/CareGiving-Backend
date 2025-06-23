@@ -1,10 +1,14 @@
 import stripe, { 
-  calculatePlatformFee, 
+  calculatePlatformFee,
+  calculateTax,
+  calculateStripeFee,
+  calculateProviderAmount,
   DEFAULT_CURRENCY,
   PAYOUT_SCHEDULE
 } from '../config/stripe';
-import { Payment, PaymentStatus, PaymentType, IPayment } from '../models/paymentModel';
+import { Payment, PaymentStatus, PaymentType, PaymentReleaseStatus, IPayment } from '../models/paymentModel';
 import { User } from '../models/db';
+import ProviderConnectAccount from '../models/providerConnectAccountModel';
 import * as paymentNotificationService from './paymentNotificationService';
 import * as paymentEmailService from './paymentEmailService';
 
@@ -19,9 +23,15 @@ export const createPaymentIntent = async (
   currency: string = DEFAULT_CURRENCY
 ): Promise<{ clientSecret: string; paymentId: string }> => {
   try {
-    // Calculate platform fee and provider amount
+    // Calculate fees and amounts
     const platformFee = calculatePlatformFee(amount);
-    const providerAmount = amount - platformFee;
+    const taxAmount = calculateTax(amount);
+    const stripeFee = calculateStripeFee(amount);
+    const providerAmount = calculateProviderAmount(amount);
+
+    // Check if provider has a Stripe Connect account
+    const providerConnectAccount = await ProviderConnectAccount.findOne({ providerId });
+    const stripeConnectAccountId = providerConnectAccount?.stripeConnectAccountId;
 
     // Create a payment record in the database
     const payment = await Payment.create({
@@ -30,15 +40,25 @@ export const createPaymentIntent = async (
       bookingId,
       amount,
       platformFee,
+      taxAmount,
+      stripeFee,
       providerAmount,
       currency,
       status: PaymentStatus.PENDING,
-      type: PaymentType.BOOKING
+      type: PaymentType.BOOKING,
+      releaseStatus: PaymentReleaseStatus.HELD,
+      stripeConnectAccountId
     });
 
-    // Create a payment intent with Stripe
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount, // Amount in cents
+    // Ensure minimum amount for Stripe ($0.50 USD)
+    const minAmount = 50; // 50 cents = $0.50
+    const stripeAmount = Math.max(Math.round(amount * 100), minAmount); // Convert to cents and ensure minimum
+    
+    console.log(`Creating payment intent with amount: ${amount}, stripeAmount: ${stripeAmount}`);
+    
+    // Create payment intent options
+    const paymentIntentOptions: any = {
+      amount: stripeAmount, // Amount in cents, minimum $0.50
       currency,
       metadata: {
         bookingId,
@@ -46,7 +66,18 @@ export const createPaymentIntent = async (
         providerId,
         paymentId: payment._id ? payment._id.toString() : ''
       }
-    });
+    };
+    
+    // If provider has a Connect account, add application fee
+    if (stripeConnectAccountId && providerConnectAccount?.chargesEnabled) {
+      paymentIntentOptions.application_fee_amount = Math.round((platformFee + taxAmount) * 100); // Convert to cents
+      paymentIntentOptions.transfer_data = {
+        destination: stripeConnectAccountId,
+      };
+    }
+    
+    // Create a payment intent with Stripe
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentOptions);
 
     // Update the payment record with the Stripe payment intent ID
     payment.stripePaymentIntentId = paymentIntent.id;
@@ -220,6 +251,7 @@ export const processProviderPayouts = async (): Promise<void> => {
         $match: {
           status: PaymentStatus.COMPLETED,
           type: PaymentType.BOOKING,
+          releaseStatus: PaymentReleaseStatus.RELEASED,
           stripeTransferId: { $exists: false }
         }
       },
@@ -238,33 +270,48 @@ export const processProviderPayouts = async (): Promise<void> => {
       const totalAmount = payout.totalAmount;
       const payments = payout.payments;
 
-      // Get the provider's Stripe account ID
-      const provider = await User.findById(providerId);
-      const stripeConnectAccountId = (provider as any)?.stripeConnectAccountId;
+      // Get the provider's Connect account
+      const providerConnectAccount = await ProviderConnectAccount.findOne({ providerId });
       
-      if (!provider || !stripeConnectAccountId) {
+      if (!providerConnectAccount || !providerConnectAccount.stripeConnectAccountId) {
         console.log(`Provider ${providerId} does not have a Stripe Connect account`);
+        continue;
+      }
+      
+      // Skip if payouts are not enabled
+      if (!providerConnectAccount.payoutEnabled) {
+        console.log(`Payouts are not enabled for provider ${providerId}`);
+        continue;
+      }
+      
+      // Skip if provider has manual payout schedule and hasn't requested a payout
+      if (providerConnectAccount.payoutSchedule === 'manual') {
+        console.log(`Provider ${providerId} has manual payout schedule`);
         continue;
       }
 
       // Create a transfer to the provider's Stripe account
       const transfer = await stripe.transfers.create({
-        amount: totalAmount,
+        amount: Math.round(totalAmount * 100), // Convert to cents
         currency: DEFAULT_CURRENCY,
-        destination: stripeConnectAccountId,
+        destination: providerConnectAccount.stripeConnectAccountId,
         metadata: {
           providerId: providerId.toString(),
           paymentCount: payments.length.toString()
         }
       });
 
-      // Update all the payments with the transfer ID
+      // Update all the payments with the transfer ID and mark as paid out
       await Payment.updateMany(
         {
           _id: { $in: payments.map((p: any) => p._id) }
         },
         {
-          $set: { stripeTransferId: transfer.id }
+          $set: { 
+            stripeTransferId: transfer.id,
+            releaseStatus: PaymentReleaseStatus.PAID_OUT,
+            paidOutDate: new Date()
+          }
         }
       );
 
@@ -275,11 +322,15 @@ export const processProviderPayouts = async (): Promise<void> => {
         bookingId: payments[0].bookingId, // Use the first booking ID as reference
         amount: totalAmount,
         platformFee: 0, // No platform fee for payouts
+        taxAmount: 0, // No tax for payouts
+        stripeFee: 0, // No Stripe fee for payouts
         providerAmount: totalAmount,
         currency: DEFAULT_CURRENCY,
         status: PaymentStatus.COMPLETED,
         type: PaymentType.PAYOUT,
+        releaseStatus: PaymentReleaseStatus.PAID_OUT,
         stripeTransferId: transfer.id,
+        stripeConnectAccountId: providerConnectAccount.stripeConnectAccountId,
         metadata: {
           paymentIds: payments.map((p: any) => p._id.toString()),
           paymentCount: payments.length
@@ -293,7 +344,8 @@ export const processProviderPayouts = async (): Promise<void> => {
       );
 
       // Send email confirmation to the provider
-      if (provider.email) {
+      const provider = await User.findById(providerId);
+      if (provider && provider.email) {
         await paymentEmailService.sendPayoutConfirmation(
           provider.email,
           totalAmount
@@ -393,6 +445,62 @@ export const getBookingPaymentDetails = async (
       .sort({ createdAt: -1 });
   } catch (error) {
     console.error('Error getting booking payment details:', error);
+    throw error;
+  }
+};
+
+/**
+ * Release funds to provider when booking is completed
+ */
+export const releaseProviderFunds = async (
+  bookingId: string
+): Promise<IPayment | null> => {
+  try {
+    // Find the payment for this booking
+    const payment = await Payment.findOne({
+      bookingId,
+      type: PaymentType.BOOKING,
+      status: PaymentStatus.COMPLETED,
+      releaseStatus: PaymentReleaseStatus.HELD
+    });
+
+    if (!payment) {
+      console.log(`No payment found for booking ${bookingId} or payment already released`);
+      return null;
+    }
+
+    // Update the payment release status
+    payment.releaseStatus = PaymentReleaseStatus.RELEASED;
+    payment.releaseDate = new Date();
+    await payment.save();
+
+    console.log(`Released funds for booking ${bookingId} to provider ${payment.providerId}`);
+
+    // Check if provider has a Connect account with manual payout schedule
+    const providerConnectAccount = await ProviderConnectAccount.findOne({
+      providerId: payment.providerId
+    });
+
+    // If provider has a Connect account and wants immediate payout
+    if (providerConnectAccount && providerConnectAccount.payoutSchedule === 'manual') {
+      console.log(`Provider ${payment.providerId} has manual payout schedule, funds available for payout`);
+      
+      // Send notification to provider that funds are available for payout
+      await paymentNotificationService.createPaymentNotification(
+        payment.providerId.toString(),
+        payment.userId.toString(),
+        payment.providerAmount,
+        payment.bookingId.toString(),
+        'Funds are now available for payout'
+      );
+    } else if (providerConnectAccount) {
+      // For automatic payout schedules, funds will be transferred on the next scheduled payout
+      console.log(`Provider ${payment.providerId} has ${providerConnectAccount.payoutSchedule} payout schedule, funds will be transferred on next scheduled payout`);
+    }
+
+    return payment;
+  } catch (error) {
+    console.error('Error releasing provider funds:', error);
     throw error;
   }
 };
