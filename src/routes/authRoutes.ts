@@ -12,6 +12,11 @@ import {
   getUserProfile,
   updateUserProfile
 } from '../controllers/authController';
+import {
+  sendOTP,
+  verifyOTP,
+  getPhoneVerificationStatus
+} from '../controllers/phoneVerificationController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 
 // Type definition for async route handler
@@ -41,5 +46,10 @@ router.post('/update-password', catchAsync(updateUserPassword));
 router.post('/verify-email', catchAsync(verifyEmail));
 router.get('/profile', catchAsync(getUserProfile));
 router.put('/profile', catchAsync(updateUserProfile));
+
+// Phone verification routes
+router.post('/send-otp', catchAsync(sendOTP));
+router.post('/verify-otp', catchAsync(verifyOTP));
+router.get('/phone-verification-status', catchAsync(getPhoneVerificationStatus));
 
 export default router;

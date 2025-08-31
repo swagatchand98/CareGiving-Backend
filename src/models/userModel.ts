@@ -18,6 +18,7 @@ export interface IUser extends Document {
   role: 'user' | 'provider' | 'admin';
   profilePicture?: string | null;
   phoneNumber?: string | null;
+  phoneVerified: boolean; // Track if phone number is verified
   address?: IAddress;
   verificationStatus: 'pending' | 'verified' | 'rejected';
   stripeCustomerId?: string; // Stripe customer ID for users
@@ -63,6 +64,10 @@ const UserSchema: Schema = new Schema<IUser>({
     type: String,
     trim: true,
     default: null
+  },
+  phoneVerified: {
+    type: Boolean,
+    default: false
   },
   address: {
     street: {
