@@ -1,85 +1,72 @@
-import * as nodemailer from 'nodemailer';
-import { app } from '../config/firebase-admin';
-import * as functions from 'firebase-functions';
-import { User } from '../models/db';
-import { config } from '../config/env';
+import * as nodemailer from "nodemailer";
+import { app } from "../config/firebase-admin";
+import * as functions from "firebase-functions";
+import { User } from "../models/db";
+import { config } from "../config/env";
 
 // Create a transporter using SMTP configuration from environment variables
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
+  host: "smtp.gmail.com",
   port: 465,
   secure: true, // use SSL
   auth: {
     user: config.EMAIL_USER,
-    pass: config.EMAIL_PASSWORD
+    pass: config.EMAIL_PASSWORD,
   },
   tls: {
     // do not fail on invalid certs
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+  },
 });
 
 // Verify transporter configuration
-transporter.verify(function(error, success) {
+transporter.verify(function (error, success) {
   if (error) {
-    console.error('SMTP server connection error:', error);
+    console.error("SMTP server connection error:", error);
   } else {
-    console.log('SMTP server connection established successfully');
+    console.log("SMTP server connection established successfully");
   }
 });
 
 /**
  * Send an email notification
- * @param to - Recipient email address
- * @param subject - Email subject
- * @param html - Email content in HTML format
- * @returns Promise resolving to the sent message info or error object
  */
-export const sendEmail = async (
-  to: string,
-  subject: string,
-  html: string
-) => {
+export const sendEmail = async (to: string, subject: string, html: string) => {
   try {
     const mailOptions = {
       from: config.EMAIL_FROM,
       to,
       subject,
-      html
+      html,
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully:', info.messageId);
+    console.log("Email sent successfully:", info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error("Error sending email:", error);
     // Return error object instead of throwing
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error sending email' 
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Unknown error sending email",
     };
   }
 };
 
 /**
  * Get user email by user ID
- * @param userId - User ID
- * @returns User email address
  */
 export const getUserEmail = async (userId: string): Promise<string> => {
   const user = await User.findById(userId);
   if (!user || !user.email) {
-    throw new Error('User not found or email not available');
+    throw new Error("User not found or email not available");
   }
   return user.email;
 };
 
 /**
  * Send booking notification email
- * @param userId - User ID
- * @param providerId - Provider ID
- * @param bookingDetails - Booking details
- * @param action - Booking action
  */
 export const sendBookingNotificationEmail = async (
   userId: string,
@@ -91,7 +78,7 @@ export const sendBookingNotificationEmail = async (
     address: string;
     status: string;
   },
-  action: 'created' | 'confirmed' | 'started' | 'completed' | 'cancelled'
+  action: "created" | "confirmed" | "started" | "completed" | "cancelled"
 ) => {
   try {
     // Get user and provider details
@@ -99,7 +86,7 @@ export const sendBookingNotificationEmail = async (
     const provider = await User.findById(providerId);
 
     if (!user || !provider) {
-      throw new Error('User or provider not found');
+      throw new Error("User or provider not found");
     }
 
     const userName = `${user.firstName} ${user.lastName}`;
@@ -111,15 +98,15 @@ export const sendBookingNotificationEmail = async (
     const formattedTime = new Date(dateTime).toLocaleTimeString();
 
     // Create email content for user
-    let userSubject = '';
-    let userHtml = '';
+    let userSubject = "";
+    let userHtml = "";
 
     // Create email content for provider
-    let providerSubject = '';
-    let providerHtml = '';
+    let providerSubject = "";
+    let providerHtml = "";
 
     switch (action) {
-      case 'created':
+      case "created":
         userSubject = `Booking Confirmation: ${serviceName}`;
         userHtml = `
           <h2>Your booking has been created</h2>
@@ -159,7 +146,7 @@ export const sendBookingNotificationEmail = async (
         `;
         break;
 
-      case 'confirmed':
+      case "confirmed":
         userSubject = `Booking Confirmed: ${serviceName}`;
         userHtml = `
           <h2>Your booking has been confirmed</h2>
@@ -197,7 +184,7 @@ export const sendBookingNotificationEmail = async (
         `;
         break;
 
-      case 'started':
+      case "started":
         userSubject = `Service Started: ${serviceName}`;
         userHtml = `
           <h2>Your service has started</h2>
@@ -235,7 +222,7 @@ export const sendBookingNotificationEmail = async (
         `;
         break;
 
-      case 'completed':
+      case "completed":
         userSubject = `Service Completed: ${serviceName}`;
         userHtml = `
           <h2>Your service has been completed</h2>
@@ -274,7 +261,7 @@ export const sendBookingNotificationEmail = async (
         `;
         break;
 
-      case 'cancelled':
+      case "cancelled":
         userSubject = `Booking Cancelled: ${serviceName}`;
         userHtml = `
           <h2>Your booking has been cancelled</h2>
@@ -318,41 +305,44 @@ export const sendBookingNotificationEmail = async (
     // Send emails with error handling
     const [userEmailResult, providerEmailResult] = await Promise.all([
       sendEmail(user.email, userSubject, userHtml),
-      sendEmail(provider.email, providerSubject, providerHtml)
+      sendEmail(provider.email, providerSubject, providerHtml),
     ]);
 
     // Log results
     if (userEmailResult.success) {
       console.log(`User booking notification email sent for action: ${action}`);
     } else {
-      console.warn(`Failed to send user booking notification email: ${userEmailResult.error}`);
+      console.warn(
+        `Failed to send user booking notification email: ${userEmailResult.error}`
+      );
     }
 
     if (providerEmailResult.success) {
-      console.log(`Provider booking notification email sent for action: ${action}`);
+      console.log(
+        `Provider booking notification email sent for action: ${action}`
+      );
     } else {
-      console.warn(`Failed to send provider booking notification email: ${providerEmailResult.error}`);
+      console.warn(
+        `Failed to send provider booking notification email: ${providerEmailResult.error}`
+      );
     }
 
     // Return success even if emails fail - notifications will still be created in the database
-    return { 
+    return {
       success: true,
       emailsSent: {
         user: userEmailResult.success,
-        provider: providerEmailResult.success
-      }
+        provider: providerEmailResult.success,
+      },
     };
   } catch (error) {
-    console.error('Error sending booking notification emails:', error);
+    console.error("Error sending booking notification emails:", error);
     throw error;
   }
 };
 
 /**
  * Send chat notification email
- * @param userId - User ID
- * @param senderName - Sender name
- * @param messagePreview - Message preview
  */
 export const sendChatNotificationEmail = async (
   userId: string,
@@ -361,42 +351,43 @@ export const sendChatNotificationEmail = async (
 ) => {
   try {
     const userEmail = await getUserEmail(userId);
-    
+
     const subject = `New Message from ${senderName}`;
     const html = `
       <h2>New Message Received</h2>
       <p>Dear User,</p>
       <p>You have received a new message from <strong>${senderName}</strong>.</p>
-      <p><strong>Message Preview:</strong> "${messagePreview.substring(0, 100)}${messagePreview.length > 100 ? '...' : ''}"</p>
+      <p><strong>Message Preview:</strong> "${messagePreview.substring(
+        0,
+        100
+      )}${messagePreview.length > 100 ? "..." : ""}"</p>
       <p>Please log in to your account to view and respond to this message.</p>
       <p>Thank you for using Urban Caregiving!</p>
     `;
 
     const emailResult = await sendEmail(userEmail, subject, html);
-    
+
     if (emailResult.success) {
       console.log(`Chat notification email sent to user: ${userId}`);
     } else {
-      console.warn(`Failed to send chat notification email: ${emailResult.error}`);
+      console.warn(
+        `Failed to send chat notification email: ${emailResult.error}`
+      );
     }
-    
+
     // Return success even if email fails - notification will still be created in the database
-    return { 
+    return {
       success: true,
-      emailSent: emailResult.success
+      emailSent: emailResult.success,
     };
   } catch (error) {
-    console.error('Error sending chat notification email:', error);
+    console.error("Error sending chat notification email:", error);
     throw error;
   }
 };
 
 /**
  * Send review notification email
- * @param providerId - Provider ID
- * @param reviewerName - Reviewer name
- * @param rating - Rating
- * @param comment - Review comment
  */
 export const sendReviewNotificationEmail = async (
   providerId: string,
@@ -406,7 +397,7 @@ export const sendReviewNotificationEmail = async (
 ) => {
   try {
     const providerEmail = await getUserEmail(providerId);
-    
+
     const subject = `New Review from ${reviewerName}`;
     const html = `
       <h2>New Review Received</h2>
@@ -422,29 +413,28 @@ export const sendReviewNotificationEmail = async (
     `;
 
     const emailResult = await sendEmail(providerEmail, subject, html);
-    
+
     if (emailResult.success) {
       console.log(`Review notification email sent to provider: ${providerId}`);
     } else {
-      console.warn(`Failed to send review notification email: ${emailResult.error}`);
+      console.warn(
+        `Failed to send review notification email: ${emailResult.error}`
+      );
     }
-    
+
     // Return success even if email fails - notification will still be created in the database
-    return { 
+    return {
       success: true,
-      emailSent: emailResult.success
+      emailSent: emailResult.success,
     };
   } catch (error) {
-    console.error('Error sending review notification email:', error);
+    console.error("Error sending review notification email:", error);
     throw error;
   }
 };
 
 /**
  * Send system notification email
- * @param userId - User ID
- * @param subject - Email subject
- * @param message - Email message
  */
 export const sendSystemNotificationEmail = async (
   userId: string,
@@ -453,7 +443,7 @@ export const sendSystemNotificationEmail = async (
 ) => {
   try {
     const userEmail = await getUserEmail(userId);
-    
+
     const html = `
       <h2>${subject}</h2>
       <p>Dear User,</p>
@@ -462,20 +452,22 @@ export const sendSystemNotificationEmail = async (
     `;
 
     const emailResult = await sendEmail(userEmail, subject, html);
-    
+
     if (emailResult.success) {
       console.log(`System notification email sent to user: ${userId}`);
     } else {
-      console.warn(`Failed to send system notification email: ${emailResult.error}`);
+      console.warn(
+        `Failed to send system notification email: ${emailResult.error}`
+      );
     }
-    
+
     // Return success even if email fails - notification will still be created in the database
-    return { 
+    return {
       success: true,
-      emailSent: emailResult.success
+      emailSent: emailResult.success,
     };
   } catch (error) {
-    console.error('Error sending system notification email:', error);
+    console.error("Error sending system notification email:", error);
     throw error;
   }
 };

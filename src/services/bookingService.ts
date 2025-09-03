@@ -1,10 +1,8 @@
-import mongoose from 'mongoose';
-import { Booking, Service, Transaction, User } from '../models/db';
+import mongoose from "mongoose";
+import { Booking, Service, Transaction, User } from "../models/db";
 
 /**
  * Create a new booking
- * @param bookingData - Booking data
- * @returns Created booking document
  */
 export const createBooking = async (bookingData: {
   serviceId: string;
@@ -19,12 +17,19 @@ export const createBooking = async (bookingData: {
   };
   specialInstructions?: string;
 }) => {
-  const { serviceId, userId, dateTime, duration, address, specialInstructions } = bookingData;
+  const {
+    serviceId,
+    userId,
+    dateTime,
+    duration,
+    address,
+    specialInstructions,
+  } = bookingData;
 
   // Get service details
   const service = await Service.findById(serviceId);
   if (!service) {
-    throw new Error('Service not found');
+    throw new Error("Service not found");
   }
 
   // Get provider ID from service
@@ -32,9 +37,9 @@ export const createBooking = async (bookingData: {
 
   // Calculate total price based on service price and duration
   let totalPrice = 0;
-  if (service.price.type === 'fixed') {
+  if (service.price.type === "fixed") {
     totalPrice = service.price.amount;
-  } else if (service.price.type === 'hourly') {
+  } else if (service.price.type === "hourly") {
     // Convert duration from minutes to hours and multiply by hourly rate
     totalPrice = service.price.amount * (duration / 60);
   }
@@ -46,10 +51,10 @@ export const createBooking = async (bookingData: {
     providerId,
     dateTime,
     duration,
-    status: 'pending',
+    status: "pending",
     address,
     specialInstructions,
-    totalPrice
+    totalPrice,
   });
 
   // Create a pending transaction record
@@ -59,8 +64,8 @@ export const createBooking = async (bookingData: {
     providerId,
     amount: totalPrice,
     platformCommission: totalPrice * 0.1, // Assuming 10% platform commission
-    paymentMethod: 'stripe', // Default payment method
-    status: 'pending'
+    paymentMethod: "stripe", // Default payment method
+    status: "pending",
   });
 
   return booking;
@@ -68,29 +73,25 @@ export const createBooking = async (bookingData: {
 
 /**
  * Get booking by ID with populated fields
- * @param bookingId - Booking ID
- * @returns Booking document with populated fields
  */
 export const getBookingById = async (bookingId: string) => {
   return Booking.findById(bookingId)
     .populate({
-      path: 'serviceId',
-      select: 'title description price images'
+      path: "serviceId",
+      select: "title description price images",
     })
     .populate({
-      path: 'userId',
-      select: 'firstName lastName email profilePicture phoneNumber'
+      path: "userId",
+      select: "firstName lastName email profilePicture phoneNumber",
     })
     .populate({
-      path: 'providerId',
-      select: 'firstName lastName email profilePicture phoneNumber'
+      path: "providerId",
+      select: "firstName lastName email profilePicture phoneNumber",
     });
 };
 
 /**
  * Get transaction by booking ID
- * @param bookingId - Booking ID
- * @returns Transaction document
  */
 export const getTransactionByBookingId = async (bookingId: string) => {
   return Transaction.findOne({ bookingId });
@@ -98,9 +99,6 @@ export const getTransactionByBookingId = async (bookingId: string) => {
 
 /**
  * Get bookings for a user with pagination and filtering
- * @param userId - User ID
- * @param options - Pagination and filtering options
- * @returns Bookings and total count
  */
 export const getUserBookings = async (
   userId: string,
@@ -116,7 +114,7 @@ export const getUserBookings = async (
   const skip = (page - 1) * limit;
 
   const query: any = { userId };
-  
+
   // Filter by status
   if (status) {
     query.status = status;
@@ -131,12 +129,12 @@ export const getUserBookings = async (
 
   const bookings = await Booking.find(query)
     .populate({
-      path: 'serviceId',
-      select: 'title description price images'
+      path: "serviceId",
+      select: "title description price images",
     })
     .populate({
-      path: 'providerId',
-      select: 'firstName lastName profilePicture'
+      path: "providerId",
+      select: "firstName lastName profilePicture",
     })
     .skip(skip)
     .limit(limit)
@@ -148,15 +146,12 @@ export const getUserBookings = async (
     bookings,
     total,
     page,
-    totalPages: Math.ceil(total / limit)
+    totalPages: Math.ceil(total / limit),
   };
 };
 
 /**
  * Get bookings for a provider with pagination and filtering
- * @param providerId - Provider ID
- * @param options - Pagination and filtering options
- * @returns Bookings and total count
  */
 export const getProviderBookings = async (
   providerId: string,
@@ -172,7 +167,7 @@ export const getProviderBookings = async (
   const skip = (page - 1) * limit;
 
   const query: any = { providerId };
-  
+
   // Filter by status
   if (status) {
     query.status = status;
@@ -187,12 +182,12 @@ export const getProviderBookings = async (
 
   const bookings = await Booking.find(query)
     .populate({
-      path: 'serviceId',
-      select: 'title description price'
+      path: "serviceId",
+      select: "title description price",
     })
     .populate({
-      path: 'userId',
-      select: 'firstName lastName profilePicture phoneNumber'
+      path: "userId",
+      select: "firstName lastName profilePicture phoneNumber",
     })
     .skip(skip)
     .limit(limit)
@@ -204,106 +199,96 @@ export const getProviderBookings = async (
     bookings,
     total,
     page,
-    totalPages: Math.ceil(total / limit)
+    totalPages: Math.ceil(total / limit),
   };
 };
 
 /**
  * Update booking status
- * @param bookingId - Booking ID
- * @param status - New status
- * @returns Updated booking document
  */
 export const updateBookingStatus = async (
   bookingId: string,
-  status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled'
+  status: "pending" | "confirmed" | "in-progress" | "completed" | "cancelled"
 ) => {
   const booking = await Booking.findById(bookingId);
   if (!booking) {
-    throw new Error('Booking not found');
+    throw new Error("Booking not found");
   }
 
   booking.status = status;
   await booking.save();
 
   // Update transaction status if booking is completed or cancelled
-  if (status === 'completed') {
-    await Transaction.findOneAndUpdate(
-      { bookingId },
-      { status: 'completed' }
-    );
-  } else if (status === 'cancelled') {
-    await Transaction.findOneAndUpdate(
-      { bookingId },
-      { status: 'cancelled' }
-    );
+  if (status === "completed") {
+    await Transaction.findOneAndUpdate({ bookingId }, { status: "completed" });
+  } else if (status === "cancelled") {
+    await Transaction.findOneAndUpdate({ bookingId }, { status: "cancelled" });
   }
 
   return Booking.findById(bookingId)
     .populate({
-      path: 'serviceId',
-      select: 'title description price'
+      path: "serviceId",
+      select: "title description price",
     })
     .populate({
-      path: 'userId',
-      select: 'firstName lastName email'
+      path: "userId",
+      select: "firstName lastName email",
     })
     .populate({
-      path: 'providerId',
-      select: 'firstName lastName email'
+      path: "providerId",
+      select: "firstName lastName email",
     });
 };
 
 /**
  * Cancel booking
- * @param bookingId - Booking ID
- * @returns Success message
  */
 export const cancelBooking = async (bookingId: string) => {
   const booking = await Booking.findById(bookingId);
   if (!booking) {
-    throw new Error('Booking not found');
+    throw new Error("Booking not found");
   }
 
   // Check if booking can be cancelled
-  if (['in-progress', 'completed'].includes(booking.status)) {
-    throw new Error('Cannot cancel a booking that is in progress or completed');
+  if (["in-progress", "completed"].includes(booking.status)) {
+    throw new Error("Cannot cancel a booking that is in progress or completed");
   }
 
   // Update booking status to cancelled
-  booking.status = 'cancelled';
+  booking.status = "cancelled";
   await booking.save();
 
   // Update transaction status
-  await Transaction.findOneAndUpdate(
-    { bookingId },
-    { status: 'cancelled' }
-  );
+  await Transaction.findOneAndUpdate({ bookingId }, { status: "cancelled" });
 
-  return { message: 'Booking cancelled successfully' };
+  return { message: "Booking cancelled successfully" };
 };
 
 /**
  * Get all bookings with pagination and filtering (for admin)
- * @param options - Pagination and filtering options
- * @returns Bookings and total count
  */
-export const getAllBookings = async (
-  options: {
-    page?: number;
-    limit?: number;
-    status?: string;
-    userId?: string;
-    providerId?: string;
-    startDate?: Date;
-    endDate?: Date;
-  }
-) => {
-  const { page = 1, limit = 10, status, userId, providerId, startDate, endDate } = options;
+export const getAllBookings = async (options: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  userId?: string;
+  providerId?: string;
+  startDate?: Date;
+  endDate?: Date;
+}) => {
+  const {
+    page = 1,
+    limit = 10,
+    status,
+    userId,
+    providerId,
+    startDate,
+    endDate,
+  } = options;
   const skip = (page - 1) * limit;
 
   const query: any = {};
-  
+
   // Filter by status
   if (status) {
     query.status = status;
@@ -328,19 +313,19 @@ export const getAllBookings = async (
 
   const bookings = await Booking.find(query)
     .populate({
-      path: 'serviceId',
-      model: 'Service',
-      select: 'title price'
+      path: "serviceId",
+      model: "Service",
+      select: "title price",
     })
     .populate({
-      path: 'userId',
-      model: 'User',
-      select: 'firstName lastName email'
+      path: "userId",
+      model: "User",
+      select: "firstName lastName email",
     })
     .populate({
-      path: 'providerId',
-      model: 'User',
-      select: 'firstName lastName email'
+      path: "providerId",
+      model: "User",
+      select: "firstName lastName email",
     })
     .skip(skip)
     .limit(limit)
@@ -352,6 +337,6 @@ export const getAllBookings = async (
     bookings,
     total,
     page,
-    totalPages: Math.ceil(total / limit)
+    totalPages: Math.ceil(total / limit),
   };
 };

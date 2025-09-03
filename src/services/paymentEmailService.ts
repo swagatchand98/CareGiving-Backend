@@ -4,9 +4,6 @@ import { formatCurrency } from '../utils/helpers';
 
 /**
  * Send payment confirmation email to the user
- * @param email - User email address
- * @param amount - Payment amount
- * @param bookingId - Booking ID
  */
 export const sendPaymentConfirmation = async (
   email: string,
@@ -48,9 +45,6 @@ export const sendPaymentConfirmation = async (
 
 /**
  * Send refund confirmation email to the user
- * @param email - User email address
- * @param amount - Refund amount
- * @param bookingId - Booking ID
  */
 export const sendRefundConfirmation = async (
   email: string,
@@ -93,8 +87,6 @@ export const sendRefundConfirmation = async (
 
 /**
  * Send payout confirmation email to the provider
- * @param email - Provider email address
- * @param amount - Payout amount
  */
 export const sendPayoutConfirmation = async (
   email: string,
@@ -136,8 +128,6 @@ export const sendPayoutConfirmation = async (
 
 /**
  * Send payment failed email to the user
- * @param email - User email address
- * @param bookingId - Booking ID
  */
 export const sendPaymentFailedEmail = async (
   email: string,
@@ -178,9 +168,6 @@ export const sendPaymentFailedEmail = async (
 
 /**
  * Send payment dispute email to the user
- * @param email - User email address
- * @param amount - Disputed amount
- * @param bookingId - Booking ID
  */
 export const sendPaymentDisputeEmail = async (
   email: string,
