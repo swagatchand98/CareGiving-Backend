@@ -4,9 +4,7 @@ import { Wishlist, Service } from '../models/db';
 import { createError } from '../middleware/errorHandler';
 
 /**
- * @desc    Get user's wishlist
  * @route   GET /api/wishlist
- * @access  Private
  */
 export const getUserWishlist = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -50,9 +48,7 @@ export const getUserWishlist = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Add service to wishlist
  * @route   POST /api/wishlist
- * @access  Private
  */
 export const addToWishlist = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -114,9 +110,7 @@ export const addToWishlist = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Remove service from wishlist
  * @route   DELETE /api/wishlist/:serviceId
- * @access  Private
  */
 export const removeFromWishlist = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -147,9 +141,7 @@ export const removeFromWishlist = async (req: Request, res: Response, next: Next
 };
 
 /**
- * @desc    Check if service is in wishlist
  * @route   GET /api/wishlist/check/:serviceId
- * @access  Private
  */
 export const checkWishlistStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {

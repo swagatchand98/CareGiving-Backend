@@ -1,4 +1,3 @@
-// controllers/chatController.ts
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { Chat } from '../models/db';

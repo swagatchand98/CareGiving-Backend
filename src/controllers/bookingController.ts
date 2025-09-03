@@ -6,18 +6,14 @@ import * as notificationService from '../services/notificationService';
 import * as paymentService from '../services/paymentService';
 import { Server as SocketIOServer } from 'socket.io';
 
-// Socket.io instance
 let io: SocketIOServer;
 
-// Set Socket.io instance
 export const setSocketIO = (socketIO: SocketIOServer) => {
   io = socketIO;
 };
 
 /**
- * @desc    Create a new booking
  * @route   POST /api/bookings
- * @access  Private
  */
 export const createBooking = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -29,18 +25,15 @@ export const createBooking = async (req: Request, res: Response, next: NextFunct
       specialInstructions 
     } = req.body;
 
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
 
-    // Validate service exists
     const service = await Service.findById(serviceId);
     if (!service) {
       return next(createError.notFound('Service not found'));
     }
 
-    // Get provider ID from service
     const providerId = service.providerId;
 
     // Calculate total price based on service price and duration
@@ -93,7 +86,6 @@ export const createBooking = async (req: Request, res: Response, next: NextFunct
         console.log(`Booking notification sent for new booking: ${bookingId.toString()}`);
       } catch (error) {
         console.error('Failed to send booking notification:', error);
-        // Don't throw error here, as we still want to return the booking
       }
     } else {
       console.log(`Booking ${booking._id} is in 'reserved' status. No notification sent to provider.`);
@@ -120,13 +112,10 @@ export const createBooking = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Get all bookings for the logged-in user
  * @route   GET /api/bookings/user
- * @access  Private
  */
 export const getUserBookings = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -178,13 +167,10 @@ export const getUserBookings = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Get all bookings for the logged-in provider
  * @route   GET /api/bookings/provider
- * @access  Private (Provider only)
  */
 export const getProviderBookings = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure provider is authenticated
     if (!req.user) {
       return next(createError.unauthorized('Provider not authenticated'));
     }
@@ -258,13 +244,10 @@ export const getProviderBookings = async (req: Request, res: Response, next: Nex
 };
 
 /**
- * @desc    Get booking by ID
  * @route   GET /api/bookings/:id
- * @access  Private
  */
 export const getBookingById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -304,9 +287,6 @@ export const getBookingById = async (req: Request, res: Response, next: NextFunc
     console.log('Booking User ID (string):', bookingUserIdStr);
     console.log('Booking Provider ID (string):', bookingProviderIdStr);
     console.log('Firebase UID:', firebaseUid);
-
-    // Check if the user is authorized to view this booking
-    // Allow access if the user is the client, the provider, or an admin
     
     // Get the user from the booking
     const bookingUser = await User.findById(booking.userId);
@@ -366,9 +346,7 @@ export const getBookingById = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Update booking status
  * @route   PATCH /api/bookings/:id/status
- * @access  Private (Provider or User)
  */
 export const updateBookingStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -384,7 +362,6 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
       return next(createError.badRequest(`Status must be one of: ${validStatuses.join(', ')}`));
     }
 
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -395,11 +372,9 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
       return next(createError.notFound('Booking not found'));
     }
 
-    // Get the user and provider from the booking
     const bookingUser = await User.findById(booking.userId);
     const bookingProvider = await User.findById(booking.providerId);
     
-    // Check if the current user is the client, provider, or admin
     const isClient = booking.userId.toString() === req.user._id.toString() || 
                      (bookingUser && bookingUser.firebaseUid === req.user.firebaseUid);
     
@@ -408,7 +383,6 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
     
     const isAdmin = req.user.role === 'admin';
     
-    // Check authorization based on the status change
     if (!isAdmin) {
       // Providers can confirm, start, or complete bookings
       if (['confirmed', 'in-progress', 'completed'].includes(status)) {
@@ -434,7 +408,7 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
     booking.status = status;
     await booking.save();
 
-    // Update transaction status if booking is completed or cancelled
+    // Update transaction status
     if (status === 'completed') {
       await Transaction.findOneAndUpdate(
         { bookingId: booking._id },
@@ -447,7 +421,6 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
         console.log(`Funds released for booking ${req.params.id}:`, payment ? 'success' : 'no payment found');
       } catch (error) {
         console.error('Error releasing funds to provider:', error);
-        // Don't throw error here, as we still want to return the booking
       }
     } else if (status === 'cancelled') {
       await Transaction.findOneAndUpdate(
@@ -458,7 +431,6 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
 
     // Send booking notification
     try {
-      // Get service name
       const bookingWithService = await Booking.findById(req.params.id).populate('serviceId');
       if (bookingWithService && bookingWithService.serviceId) {
         const serviceName = (bookingWithService.serviceId as any).title;
@@ -484,8 +456,7 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
         }
       }
     } catch (error) {
-      console.error('Failed to send booking notification:', error);
-      // Don't throw error here, as we still want to return the booking
+      console.error('Failed to send booking notification:', error)
     }
 
     // Get updated booking with populated fields
@@ -513,25 +484,20 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
 };
 
 /**
- * @desc    Cancel booking
  * @route   DELETE /api/bookings/:id
- * @access  Private
  */
 export const cancelBooking = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
 
-    // Find booking
     const booking = await Booking.findById(req.params.id);
     if (!booking) {
       return next(createError.notFound('Booking not found'));
     }
 
     // Check if user is authorized to cancel this booking
-    // Get the user from the booking
     const bookingUser = await User.findById(booking.userId);
     
     // Check if the current user is the client or admin
@@ -545,6 +511,7 @@ export const cancelBooking = async (req: Request, res: Response, next: NextFunct
     }
 
     // Check if booking can be cancelled
+
     if (['in-progress', 'completed'].includes(booking.status)) {
       return next(createError.badRequest('Cannot cancel a booking that is in progress or completed'));
     }
@@ -561,7 +528,6 @@ export const cancelBooking = async (req: Request, res: Response, next: NextFunct
 
     // Send booking notification
     try {
-      // Get service name
       const bookingWithService = await Booking.findById(req.params.id).populate('serviceId');
       if (bookingWithService && bookingWithService.serviceId) {
         const serviceName = (bookingWithService.serviceId as any).title;
@@ -588,7 +554,6 @@ export const cancelBooking = async (req: Request, res: Response, next: NextFunct
       }
     } catch (error) {
       console.error('Failed to send booking notification:', error);
-      // Don't throw error here, as we still want to return the success message
     }
 
     res.status(200).json({

@@ -4,9 +4,7 @@ import { createError } from '../middleware/errorHandler';
 import stripe from '../config/stripe';
 
 /**
- * @desc    Get provider's Stripe Connect account details
  * @route   GET /api/v1/providers/connect/account
- * @access  Private (Provider only)
  */
 export const getConnectAccount = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -36,9 +34,7 @@ export const getConnectAccount = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * @desc    Create a Stripe Connect account link for onboarding
  * @route   POST /api/v1/providers/connect/create-account-link
- * @access  Private (Provider only)
  */
 export const createAccountLink = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -110,9 +106,7 @@ export const createAccountLink = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * @desc    Create a Stripe Connect login link for existing accounts
  * @route   POST /api/v1/providers/connect/login-link
- * @access  Private (Provider only)
  */
 export const createLoginLink = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -149,9 +143,7 @@ export const createLoginLink = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Update provider's payout schedule
  * @route   PATCH /api/v1/providers/connect/payout-schedule
- * @access  Private (Provider only)
  */
 export const updatePayoutSchedule = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -202,9 +194,7 @@ export const updatePayoutSchedule = async (req: Request, res: Response, next: Ne
 };
 
 /**
- * @desc    Request an immediate payout
  * @route   POST /api/v1/providers/connect/request-payout
- * @access  Private (Provider only)
  */
 export const requestPayout = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -255,9 +245,7 @@ export const requestPayout = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Get provider's Stripe balance
  * @route   GET /api/v1/providers/connect/balance
- * @access  Private (Provider only)
  */
 export const getBalance = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -287,9 +275,7 @@ export const getBalance = async (req: Request, res: Response, next: NextFunction
 };
 
 /**
- * @desc    Get provider's payout history
  * @route   GET /api/v1/providers/connect/payouts
- * @access  Private (Provider only)
  */
 export const getPayouts = async (req: Request, res: Response, next: NextFunction) => {
   try {

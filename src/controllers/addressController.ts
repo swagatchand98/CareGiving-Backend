@@ -3,13 +3,10 @@ import { Address } from '../models/addressModel';
 import { createError } from '../middleware/errorHandler';
 
 /**
- * @desc    Get all addresses for the logged-in user
  * @route   GET /api/addresses
- * @access  Private
  */
 export const getUserAddresses = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -27,13 +24,10 @@ export const getUserAddresses = async (req: Request, res: Response, next: NextFu
 };
 
 /**
- * @desc    Get address by ID
  * @route   GET /api/addresses/:id
- * @access  Private
  */
 export const getAddressById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -54,13 +48,10 @@ export const getAddressById = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Create a new address
  * @route   POST /api/addresses
- * @access  Private
  */
 export const createAddress = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -78,12 +69,11 @@ export const createAddress = async (req: Request, res: Response, next: NextFunct
       instructions
     } = req.body;
 
-    // Validate required fields
     if (!name || !street || !city || !state || !zipCode) {
       return next(createError.badRequest('Please provide all required fields'));
     }
 
-    // Create address
+    // address
     const address = await Address.create({
       userId: req.user._id,
       type: type || 'home',
@@ -108,13 +98,10 @@ export const createAddress = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Update an address
  * @route   PATCH /api/addresses/:id
- * @access  Private
  */
 export const updateAddress = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -163,13 +150,10 @@ export const updateAddress = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Delete an address
  * @route   DELETE /api/addresses/:id
- * @access  Private
  */
 export const deleteAddress = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -200,13 +184,10 @@ export const deleteAddress = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Set an address as default
  * @route   PATCH /api/addresses/:id/default
- * @access  Private
  */
 export const setDefaultAddress = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }
@@ -232,13 +213,10 @@ export const setDefaultAddress = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * @desc    Get user's default address
  * @route   GET /api/addresses/default
- * @access  Private
  */
 export const getDefaultAddress = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is authenticated
     if (!req.user) {
       return next(createError.unauthorized('User not authenticated'));
     }

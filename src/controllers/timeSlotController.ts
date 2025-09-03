@@ -4,9 +4,7 @@ import { TimeSlot, TimeSlotSegment, Service, User } from '../models/db';
 import { createError } from '../middleware/errorHandler';
 
 /**
- * @desc    Create time slots for a service
  * @route   POST /api/timeslots
- * @access  Private (Provider only)
  */
 export const createTimeSlots = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -132,9 +130,7 @@ export const createTimeSlots = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Get available time slots for a service
  * @route   GET /api/timeslots/service/:serviceId
- * @access  Public
  */
 export const getServiceTimeSlots = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -253,9 +249,7 @@ export const getServiceTimeSlots = async (req: Request, res: Response, next: Nex
 };
 
 /**
- * @desc    Get provider's time slots
  * @route   GET /api/timeslots/provider
- * @access  Private (Provider only)
  */
 export const getProviderTimeSlots = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -364,9 +358,7 @@ export const getProviderTimeSlots = async (req: Request, res: Response, next: Ne
 };
 
 /**
- * @desc    Update a time slot
  * @route   PATCH /api/timeslots/:id
- * @access  Private (Provider only)
  */
 export const updateTimeSlot = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -410,9 +402,7 @@ export const updateTimeSlot = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Delete a time slot
  * @route   DELETE /api/timeslots/:id
- * @access  Private (Provider only)
  */
 export const deleteTimeSlot = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -455,9 +445,7 @@ export const deleteTimeSlot = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Book a time slot
  * @route   POST /api/timeslots/:id/book
- * @access  Private
  */
 export const bookTimeSlot = async (req: Request, res: Response, next: NextFunction) => {
   try {

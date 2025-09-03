@@ -3,15 +3,12 @@ import { User, Service, Booking, ServiceCategory, Transaction, Review, Notificat
 import mongoose from 'mongoose';
 
 /**
- * @desc    Get all users
  * @route   GET /api/v1/admin/users
- * @access  Private/Admin
  */
 export const getAllUsers = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { role, status, verificationStatus, search } = req.query;
     
-    // Build filter object
     const filter: any = {};
     
     if (role) {
@@ -46,9 +43,7 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
 };
 
 /**
- * @desc    Get user by ID
  * @route   GET /api/v1/admin/users/:id
- * @access  Private/Admin
  */
 export const getUserById = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -89,9 +84,7 @@ export const getUserById = async (req: Request, res: Response, next: NextFunctio
 };
 
 /**
- * @desc    Update user status
  * @route   PATCH /api/v1/admin/users/:id/status
- * @access  Private/Admin
  */
 export const updateUserStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -121,9 +114,7 @@ export const updateUserStatus = async (req: Request, res: Response, next: NextFu
 };
 
 /**
- * @desc    Suspend a user
  * @route   POST /api/v1/admin/users/:id/suspend
- * @access  Private/Admin
  */
 export const suspendUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -176,9 +167,7 @@ export const suspendUser = async (req: Request, res: Response, next: NextFunctio
 };
 
 /**
- * @desc    Activate a suspended user
  * @route   POST /api/v1/admin/users/:id/activate
- * @access  Private/Admin
  */
 export const activateUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -215,9 +204,7 @@ export const activateUser = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
- * @desc    Block a user
  * @route   POST /api/v1/admin/users/:id/block
- * @access  Private/Admin
  */
 export const blockUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -267,9 +254,7 @@ export const blockUser = async (req: Request, res: Response, next: NextFunction)
 };
 
 /**
- * @desc    Unblock a user
  * @route   POST /api/v1/admin/users/:id/unblock
- * @access  Private/Admin
  */
 export const unblockUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -305,15 +290,12 @@ export const unblockUser = async (req: Request, res: Response, next: NextFunctio
 };
 
 /**
- * @desc    Get all services
  * @route   GET /api/v1/admin/services
- * @access  Private/Admin
  */
 export const getAllServices = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { categoryId, providerId, minPrice, maxPrice, search } = req.query;
     
-    // Build filter object
     const filter: any = {};
     
     if (categoryId && mongoose.Types.ObjectId.isValid(categoryId as string)) {
@@ -359,9 +341,7 @@ export const getAllServices = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Get service by ID
  * @route   GET /api/v1/admin/services/:id
- * @access  Private/Admin
  */
 export const getServiceById = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -403,9 +383,7 @@ export const getServiceById = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Update service
  * @route   PUT /api/v1/admin/services/:id
- * @access  Private/Admin
  */
 export const updateService = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -449,9 +427,7 @@ export const updateService = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Delete service
  * @route   DELETE /api/v1/admin/services/:id
- * @access  Private/Admin
  */
 export const deleteService = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -497,9 +473,7 @@ export const deleteService = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Get all service categories
  * @route   GET /api/v1/admin/service-categories
- * @access  Private/Admin
  */
 export const getAllServiceCategories = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -526,9 +500,7 @@ export const getAllServiceCategories = async (req: Request, res: Response, next:
 };
 
 /**
- * @desc    Manage service categories (create, update, delete)
  * @route   POST /api/v1/admin/service-categories
- * @access  Private/Admin
  */
 export const manageServiceCategories = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -612,15 +584,12 @@ export const manageServiceCategories = async (req: Request, res: Response, next:
 };
 
 /**
- * @desc    Get all bookings
  * @route   GET /api/v1/admin/bookings
- * @access  Private/Admin
  */
 export const getAllBookings = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { status, startDate, endDate, userId, serviceId, providerId, sortBy, limit, page } = req.query;
     
-    // Build filter object
     const filter: any = {};
     
     if (status) {
@@ -686,9 +655,7 @@ export const getAllBookings = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Get booking by ID
  * @route   GET /api/v1/admin/bookings/:id
- * @access  Private/Admin
  */
 export const getBookingById = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -718,9 +685,7 @@ export const getBookingById = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Update booking status
  * @route   PATCH /api/v1/admin/bookings/:id/status
- * @access  Private/Admin
  */
 export const updateBookingStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -772,15 +737,12 @@ export const updateBookingStatus = async (req: Request, res: Response, next: Nex
 };
 
 /**
- * @desc    Get all payments/transactions
  * @route   GET /api/v1/admin/payments
- * @access  Private/Admin
  */
 export const getAllPayments = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { status, startDate, endDate, userId, providerId, minAmount, maxAmount, sortBy, limit, page } = req.query;
     
-    // Build filter object
     const filter: any = {};
     
     if (status) {
@@ -853,9 +815,7 @@ export const getAllPayments = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Get payment by ID
  * @route   GET /api/v1/admin/payments/:id
- * @access  Private/Admin
  */
 export const getPaymentById = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -875,15 +835,12 @@ export const getPaymentById = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Get all reviews
  * @route   GET /api/v1/admin/reviews
- * @access  Private/Admin
  */
 export const getAllReviews = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { userId, providerId, minRating, maxRating, sortBy, limit, page } = req.query;
     
-    // Build filter object
     const filter: any = {};
     
     if (userId && mongoose.Types.ObjectId.isValid(userId as string)) {
@@ -941,9 +898,7 @@ export const getAllReviews = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Delete review
  * @route   DELETE /api/v1/admin/reviews/:id
- * @access  Private/Admin
  */
 export const deleteReview = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -970,15 +925,12 @@ export const deleteReview = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
- * @desc    Get all provider profiles
  * @route   GET /api/v1/admin/providers
- * @access  Private/Admin
  */
 export const getAllProviders = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { status, verificationStatus, search, specialties, minRating, maxRating, limit, page } = req.query;
     
-    // Build filter object
     const filter: any = { role: 'provider' };
     
     if (status) {
@@ -1065,7 +1017,6 @@ export const getAllProviders = async (req: Request, res: Response, next: NextFun
       })
     );
     
-    // Filter out null values (providers that didn't match rating or specialty filters)
     const filteredProviders = providerDetails.filter(p => p !== null);
     
     const totalProviders = await User.countDocuments({ ...filter, role: 'provider' });
@@ -1083,9 +1034,7 @@ export const getAllProviders = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Get provider by ID
  * @route   GET /api/v1/admin/providers/:id
- * @access  Private/Admin
  */
 export const getProviderById = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -1162,9 +1111,7 @@ export const getProviderById = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Get dashboard statistics
  * @route   GET /api/v1/admin/dashboard
- * @access  Private/Admin
  */
 export const getDashboardStats = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -1317,9 +1264,7 @@ export const getDashboardStats = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * @desc    Generate reports
  * @route   GET /api/v1/admin/reports
- * @access  Private/Admin
  */
 export const generateReports = async (req: Request, res: Response, next: NextFunction) => {
   try {

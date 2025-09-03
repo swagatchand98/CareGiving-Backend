@@ -18,7 +18,6 @@ const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// @desc    Send OTP to user's phone number
 // @route   POST /api/auth/send-otp
 export const sendOTP = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -63,7 +62,6 @@ export const sendOTP = async (req: Request, res: Response, next: NextFunction) =
   }
 };
 
-// @desc    Verify OTP and mark phone as verified
 // @route   POST /api/auth/verify-otp
 export const verifyOTP = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -134,7 +132,6 @@ export const verifyOTP = async (req: Request, res: Response, next: NextFunction)
   }
 };
 
-// @desc    Check if user's phone is verified
 // @route   GET /api/auth/phone-verification-status
 export const getPhoneVerificationStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {

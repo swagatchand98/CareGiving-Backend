@@ -5,9 +5,7 @@ import { createError } from '../middleware/errorHandler';
 import * as notificationService from '../services/notificationService';
 
 /**
- * @desc    Create a review for a completed booking
  * @route   POST /api/reviews
- * @access  Private
  */
 export const createReview = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -94,9 +92,7 @@ export const createReview = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
- * @desc    Get reviews for a provider
  * @route   GET /api/reviews/provider/:providerId
- * @access  Public
  */
 export const getProviderReviews = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -180,9 +176,7 @@ export const getProviderReviews = async (req: Request, res: Response, next: Next
 };
 
 /**
- * @desc    Get reviews for a service
  * @route   GET /api/reviews/service/:serviceId
- * @access  Public
  */
 export const getServiceReviews = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -281,9 +275,7 @@ export const getServiceReviews = async (req: Request, res: Response, next: NextF
 };
 
 /**
- * @desc    Get user's reviews
  * @route   GET /api/reviews/user
- * @access  Private
  */
 export const getUserReviews = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -331,9 +323,7 @@ export const getUserReviews = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * @desc    Update a review
  * @route   PATCH /api/reviews/:id
- * @access  Private
  */
 export const updateReview = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -389,9 +379,7 @@ export const updateReview = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
- * @desc    Delete a review
  * @route   DELETE /api/reviews/:id
- * @access  Private
  */
 export const deleteReview = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -434,9 +422,7 @@ export const deleteReview = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
- * @desc    Get review by ID
  * @route   GET /api/reviews/:id
- * @access  Public
  */
 export const getReviewById = async (req: Request, res: Response, next: NextFunction) => {
   try {

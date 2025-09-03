@@ -5,17 +5,14 @@ import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import admin from 'firebase-admin';
 
-// Secret key for JWT signing - in production, this should be in environment variables
 const JWT_SECRET = process.env.JWT_SECRET || 'admin-jwt-secret-key-change-in-production';
-const JWT_EXPIRES_IN = '24h'; // Token expiration time
+const JWT_EXPIRES_IN = '24h';
 
 // Admin token blacklist for logout functionality
 const tokenBlacklist = new Set<string>();
 
 /**
- * @desc    Admin login with email and password
  * @route   POST /api/admin/auth/login
- * @access  Public
  */
 export const 
 adminLogin = async (req: Request, res: Response, next: NextFunction) => {
@@ -28,7 +25,6 @@ adminLogin = async (req: Request, res: Response, next: NextFunction) => {
     }
 
     try {
-      // Find user in our database first to check if they have admin role
       const user = await User.findOne({ email });
       console.log('User found:', user ? 'Yes' : 'No');
 
@@ -36,13 +32,12 @@ adminLogin = async (req: Request, res: Response, next: NextFunction) => {
         return res.status(401).json({ message: 'Invalid credentials or not authorized as admin' });
       }
 
-      // Verify Firebase UID if provided
+      // Verify Firebase UID
       if (firebaseUid && user.firebaseUid !== firebaseUid) {
         console.warn(`Firebase UID mismatch: ${firebaseUid} vs ${user.firebaseUid}`);
-        // We'll continue anyway since the email/password match
       }
 
-      // Create a JWT token with user information
+      // JWT token with user information
       const token = jwt.sign(
         { 
           id: user._id,
@@ -55,17 +50,16 @@ adminLogin = async (req: Request, res: Response, next: NextFunction) => {
         { expiresIn: JWT_EXPIRES_IN }
       );
 
-      // Set secure HTTP-only cookie with the token
+      // HTTP-only cookie with the token
       res.cookie('adminToken', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // Secure in production
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        maxAge: 24 * 60 * 60 * 1000 
       });
 
       console.log('Login successful, returning token');
       
-      // Return user data with the token
       return res.json({
         _id: user._id,
         email: user.email,
@@ -84,20 +78,16 @@ adminLogin = async (req: Request, res: Response, next: NextFunction) => {
 };
 
 /**
- * @desc    Admin logout
  * @route   POST /api/admin/auth/logout
- * @access  Private/Admin
  */
 export const adminLogout = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Get token from authorization header
     const token = req.headers.authorization?.split(' ')[1];
     
     if (token) {
       // Add token to blacklist
       tokenBlacklist.add(token);
       
-      // Clear the cookie
       res.clearCookie('adminToken');
     }
     
@@ -108,9 +98,7 @@ export const adminLogout = async (req: Request, res: Response, next: NextFunctio
 };
 
 /**
- * @desc    Get current admin
  * @route   GET /api/admin/auth/me
- * @access  Private/Admin
  */
 export const getCurrentAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -118,7 +106,6 @@ export const getCurrentAdmin = async (req: Request, res: Response, next: NextFun
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    // Check if user is an admin
     if ((req as any).user.role !== 'admin') {
       return res.status(403).json({ message: 'Not authorized as admin' });
     }
@@ -136,13 +123,10 @@ export const getCurrentAdmin = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Verify admin token
  * @route   POST /api/admin/auth/verify-token
- * @access  Public
  */
 export const verifyAdminToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Get token from authorization header
     let token;
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
@@ -158,31 +142,27 @@ export const verifyAdminToken = async (req: Request, res: Response, next: NextFu
       //   return res.status(401).json({ message: 'Token has been invalidated' });
       // }
 
-      // Verify the Firebase token
       const decodedToken = await admin.auth().verifyIdToken(token);
       if (!decodedToken) {
         return res.status(401).json({ message: 'Invalid Firebase token' });
       }
       
-      // For Firebase tokens, just create a new JWT token without verification
+      // For Firebase tokens, new JWT token without verification
       if (req.body.tokenType === 'firebase') {
         console.log('Creating new JWT token for Firebase user');
-
-        // Extract email from the request body or token payload
         const email = req.body.email;
         
         if (!email) {
           return res.status(400).json({ message: 'Email is required for token exchange' });
         }
         
-        // Find user by email
         const user = await User.findOne({ email }).select('-password');
         
         if (!user || user.role !== 'admin') {
           return res.status(403).json({ message: 'Not authorized as admin' });
         }
         
-        // Create a new JWT token for the admin
+        // new JWT token for the admin
         const jwtToken = jwt.sign(
           { 
             id: user._id,
@@ -194,21 +174,17 @@ export const verifyAdminToken = async (req: Request, res: Response, next: NextFu
           JWT_SECRET,
           { expiresIn: JWT_EXPIRES_IN }
         );
-        
-        // Return the token to the client
+
         return res.json({ valid: true, user, token: jwtToken });
       }
       
-      // For JWT tokens, verify them
       console.log('Verifying JWT token');
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       
-      // Check if token is for admin
       if (decoded.role !== 'admin' || decoded.tokenType !== 'admin') {
         return res.status(403).json({ message: 'Not authorized as admin' });
       }
 
-      // Find the user
       const user = await User.findById(decoded.id).select('-password');
 
       if (!user || user.role !== 'admin') {
@@ -245,7 +221,6 @@ export const loginRateLimiter = (req: Request, res: Response, next: NextFunction
   // Get current attempts for this IP
   const attempts = loginAttempts.get(ip) || { count: 0, resetTime: now + windowMs };
 
-  // Reset if the time has expired
   if (attempts.resetTime < now) {
     attempts.count = 0;
     attempts.resetTime = now + windowMs;
@@ -285,7 +260,6 @@ export const adminAuth = async (req: Request, res: Response, next: NextFunction)
   try {
     let token;
 
-    // Check for token in Authorization header or cookie
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
       console.log('🟡 Token received:', token);
@@ -308,18 +282,15 @@ export const adminAuth = async (req: Request, res: Response, next: NextFunction)
     }
 
     try {
-      // Verify the JWT token
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       console.log('✅ Decoded token:', decoded);
 
-      // Check if token is for admin
       if (decoded.role !== 'admin' || decoded.tokenType !== 'admin') {
         console.log('❌ Token role or type is invalid:', decoded.role, decoded.tokenType);
         res.status(403).json({ message: 'Not authorized as admin' });
         return;
       }
 
-      // Find the user
       const user = await User.findById(decoded.id).select('-password');
       console.log('👤 User found:', user);
 
@@ -329,7 +300,6 @@ export const adminAuth = async (req: Request, res: Response, next: NextFunction)
         return;
       }
 
-      // Set user in request
       (req as any).user = user;
 
       console.log('✅ Admin authenticated');
@@ -351,14 +321,10 @@ export const adminAuth = async (req: Request, res: Response, next: NextFunction)
 };
 
 /**
- * @desc    Create admin user (for initial setup only)
  * @route   POST /api/admin/auth/create-admin
- * @access  Private/Super Admin
  */
 export const createAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // This endpoint should be secured with additional authentication
-    // For example, a special setup token or super admin role
     const { email, password, firstName, lastName } = req.body;
 
     if (!email || !password) {
@@ -366,7 +332,6 @@ export const createAdmin = async (req: Request, res: Response, next: NextFunctio
     }
 
     try {
-      // Check if user already exists
       const existingUser = await User.findOne({ email });
 
       if (existingUser) {
@@ -420,10 +385,6 @@ export const createAdmin = async (req: Request, res: Response, next: NextFunctio
 
 // Clean up expired tokens from blacklist periodically
 setInterval(() => {
-  // In a production environment, you would use Redis or a database for token blacklisting
-  // This is a simple in-memory implementation for demonstration
+  // in production, use Redis or a database for token blacklisting
   console.log(`Cleaning up token blacklist. Current size: ${tokenBlacklist.size}`);
-  
-  // In a real implementation, you would remove expired tokens based on their expiration time
-  // For this simple implementation, we're not doing anything as we don't store expiration times
 }, 24 * 60 * 60 * 1000); // Run once a day

@@ -5,7 +5,6 @@ import { auth } from '../config/firebase-admin';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 
-// Extend Request interface to include user and decodedToken
 declare global {
   namespace Express {
     interface Request {
@@ -15,31 +14,26 @@ declare global {
   }
 }
 
-// Simple in-memory token store (for development only)
-// In production, use a proper database or Redis
+// Simple in-memory token store for developement
+// in production, database or Redis needed
 const tokenStore: Record<string, string> = {};
 
-// Generate a secure random token
 const generateSecureToken = (userId: string): string => {
   const randomBytes = crypto.randomBytes(32).toString('hex');
   const token = `${randomBytes}_${Date.now()}`;
   
-  // Store the token with the user ID
   tokenStore[token] = userId;
   
   return token;
 };
 
-// Verify a token
 export const verifyToken = (token: string): string | null => {
   return tokenStore[token] || null;
 };
 
-// @desc    Register user from client-side Firebase Auth
 // @route   POST /api/auth/register
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Check if the request has an Authorization header with a Firebase ID token
     if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer')) {
       return res.status(401).json({ message: 'Firebase ID token required' });
     }
@@ -47,23 +41,18 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     const idToken = req.headers.authorization.split(' ')[1];
     
     try {
-      // Verify the Firebase ID token
       const decodedToken = await auth.verifyIdToken(idToken);
       
-      // Check if user already exists in our database
       let user = await User.findOne({ firebaseUid: decodedToken.uid });
       
       if (user) {
         return res.status(400).json({ message: 'User already exists' });
       }
       
-      // Get user details from Firebase
       const firebaseUser = await auth.getUser(decodedToken.uid);
       
-      // Extract user details from request body or Firebase user
       const { firstName, lastName, role = 'user' } = req.body;
       
-      // Extract name parts from displayName if not provided in request
       let firstNameToUse = firstName;
       let lastNameToUse = lastName;
       
@@ -73,7 +62,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         lastNameToUse = nameParts.slice(1).join(' ') || '';
       }
       
-      // Create user in our database
+      // Create user
       user = await User.create({
         firebaseUid: decodedToken.uid,
         email: firebaseUser.email || '',
@@ -83,13 +72,11 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         verificationStatus: firebaseUser.emailVerified ? 'verified' : 'pending'
       });
       
-      // Set custom claims for role-based access
       await auth.setCustomUserClaims(decodedToken.uid, { role });
-      
-      // Generate a secure token for our system
+
       const token = generateSecureToken(user.firebaseUid);
       
-      // Return user data
+      
       return res.status(201).json({
         _id: user._id,
         firebaseUid: user.firebaseUid,
@@ -104,7 +91,6 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     } catch (error: any) {
       console.error('Firebase token verification error:', error);
       
-      // Handle Firebase Admin specific errors
       if (error.code) {
         switch (error.code) {
           case 'auth/id-token-expired':
@@ -125,11 +111,9 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
   }
 };
 
-// @desc    Register provider from client-side Firebase Auth (Step 1: Basic Registration)
 // @route   POST /api/auth/register-provider
 export const registerProvider = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Check if the request has an Authorization header with a Firebase ID token
     if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer')) {
       return res.status(401).json({ message: 'Firebase ID token required' });
     }
@@ -137,23 +121,18 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
     const idToken = req.headers.authorization.split(' ')[1];
     
     try {
-      // Verify the Firebase ID token
       const decodedToken = await auth.verifyIdToken(idToken);
       
-      // Check if user already exists in our database
       let user = await User.findOne({ firebaseUid: decodedToken.uid });
       
       if (user) {
         return res.status(400).json({ message: 'User already exists' });
       }
       
-      // Get user details from Firebase
       const firebaseUser = await auth.getUser(decodedToken.uid);
       
-      // Extract basic user details from request body or Firebase user
       const { firstName, lastName, phoneNumber } = req.body;
       
-      // Extract name parts from displayName if not provided in request
       let firstNameToUse = firstName;
       let lastNameToUse = lastName;
       
@@ -163,7 +142,7 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
         lastNameToUse = nameParts.slice(1).join(' ') || '';
       }
       
-      // Create user in our database with provider role
+      // Create user
       user = await User.create({
         firebaseUid: decodedToken.uid,
         email: firebaseUser.email || '',
@@ -174,10 +153,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
         verificationStatus: 'pending' // Providers need verification
       });
       
-      // Set custom claims for role-based access
       await auth.setCustomUserClaims(decodedToken.uid, { role: 'provider' });
       
-      // Create a minimal provider profile (will be completed during onboarding)
+      // minimal provider profile (will be completed during onboarding)
       const providerProfile = await ProviderProfile.create({
         userId: user._id,
         serviceCategories: [],
@@ -186,15 +164,13 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
         yearsOfExperience: 0,
         hourlyRate: 0,
         serviceAreas: [],
-        availability: [], // Default empty availability
-        backgroundCheckVerified: false, // Default to false until verified
+        availability: [], 
+        backgroundCheckVerified: false,
         languagesSpoken: []
       });
-      
-      // Generate a secure token for our system
+
       const token = generateSecureToken(user.firebaseUid);
       
-      // Return user data with minimal provider profile
       return res.status(201).json({
         _id: user._id,
         firebaseUid: user.firebaseUid,
@@ -204,14 +180,13 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
         phoneNumber: user.phoneNumber,
         role: user.role,
         verificationStatus: user.verificationStatus,
-        onboardingRequired: true, // Flag to indicate onboarding is required
+        onboardingRequired: true, 
         token: token,
         message: 'Provider registered successfully. Please complete the onboarding process.'
       });
     } catch (error: any) {
       console.error('Firebase token verification error:', error);
       
-      // Handle Firebase Admin specific errors
       if (error.code) {
         switch (error.code) {
           case 'auth/id-token-expired':
@@ -232,11 +207,9 @@ export const registerProvider = async (req: Request, res: Response, next: NextFu
   }
 };
 
-// @desc    Login with Firebase ID token
 // @route   POST /api/auth/login
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Check if the request has an Authorization header with a Firebase ID token
     if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer')) {
       return res.status(401).json({ message: 'Firebase ID token required' });
     }
@@ -244,10 +217,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const idToken = req.headers.authorization.split(' ')[1];
     
     try {
-      // Verify the Firebase ID token
       const decodedToken = await auth.verifyIdToken(idToken);
       
-      // Find or create the user in our database
       let user = await User.findOne({ firebaseUid: decodedToken.uid });
       
       if (!user) {
@@ -276,17 +247,15 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         
         console.log('Created new user from Firebase authentication:', user.email);
       }
-      
-      // Generate a secure token for our system
+
       const token = generateSecureToken(user.firebaseUid);
       
-      // Check if user is a provider and include provider profile if so
+
       let providerProfile = null;
       if (user.role === 'provider') {
         providerProfile = await ProviderProfile.findOne({ userId: user._id });
       }
-      
-      // Return user data with the secure token
+
       const response: any = {
         _id: user._id,
         firebaseUid: user.firebaseUid,
@@ -314,7 +283,6 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     } catch (error: any) {
       console.error('Firebase ID token verification error:', error);
       
-      // Handle Firebase Admin specific errors
       if (error.code) {
         switch (error.code) {
           case 'auth/id-token-expired':
@@ -335,23 +303,19 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
   }
 };
 
-// @desc    Get user data after token verification
 // @route   GET /api/auth/me
 export const getUserData = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // The token is verified in the protect middleware
-    // This endpoint is just for getting user data
     if (!req.user) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    // Check if user is a provider and include provider profile if so
     let providerProfile = null;
     if (req.user.role === 'provider') {
       providerProfile = await ProviderProfile.findOne({ userId: req.user._id });
     }
     
-    // Return user data
+    
     const response: any = {
       _id: req.user._id,
       firebaseUid: req.user.firebaseUid,
@@ -362,7 +326,6 @@ export const getUserData = async (req: Request, res: Response, next: NextFunctio
       verificationStatus: req.user.verificationStatus
     };
     
-    // Include provider profile if available
     if (providerProfile) {
       response.providerProfile = {
         _id: providerProfile._id,
@@ -380,11 +343,9 @@ export const getUserData = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-// @desc    Get current user
 // @route   GET /api/auth/me
 export const getCurrentUser = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Ensure user is defined in the request
     if (!req.user) {
       return res.status(401).json({ message: 'Not authorized' });
     }
@@ -395,7 +356,6 @@ export const getCurrentUser = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-// @desc    Forgot password (handled by Firebase client SDK)
 // @route   POST /api/auth/forgot-password
 export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -421,7 +381,6 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-// @desc    Reset password confirmation (handled by Firebase client SDK)
 // @route   POST /api/auth/reset-password
 export const resetPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -434,11 +393,9 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-// @desc    Update user verification status
 // @route   POST /api/auth/verify-email
 export const verifyEmail = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Check if the request has an Authorization header with a Firebase ID token
     if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer')) {
       return res.status(401).json({ message: 'Firebase ID token required' });
     }
@@ -446,7 +403,6 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
     const idToken = req.headers.authorization.split(' ')[1];
     
     try {
-      // Verify the Firebase ID token
       const decodedToken = await auth.verifyIdToken(idToken);
       
       // Get the latest user info from Firebase
@@ -472,7 +428,6 @@ export const verifyEmail = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-// @desc    Get user profile
 // @route   GET /api/auth/profile
 export const getUserProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -480,13 +435,11 @@ export const getUserProfile = async (req: Request, res: Response, next: NextFunc
       return res.status(401).json({ message: 'Not authorized' });
     }
     
-    // Check if user is a provider and include provider profile if so
     let providerProfile = null;
     if (req.user.role === 'provider') {
       providerProfile = await ProviderProfile.findOne({ userId: req.user._id });
     }
     
-    // Return user data with provider profile if available
     const response: any = req.user.toObject();
     
     if (providerProfile) {
@@ -499,7 +452,6 @@ export const getUserProfile = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-// @desc    Update user profile
 // @route   PUT /api/auth/profile
 export const updateUserProfile = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -511,16 +463,14 @@ export const updateUserProfile = async (req: Request, res: Response, next: NextF
     const uid = req.decodedToken.uid;
     
     try {
-      // Update user in Firebase
       await auth.updateUser(uid, {
         displayName: `${firstName} ${lastName}`
       });
     } catch (firebaseUpdateError) {
       console.error('Error updating Firebase user profile:', firebaseUpdateError);
-      // Continue without updating Firebase profile
     }
     
-    // Update user in our database
+    // Update user
     const updatedUser = await User.findByIdAndUpdate(
       req.user._id,
       {
@@ -532,7 +482,7 @@ export const updateUserProfile = async (req: Request, res: Response, next: NextF
       { new: true }
     );
     
-    // If user is a provider, update provider profile if provided
+    // Update if provider profile
     if (req.user.role === 'provider') {
       const { 
         bio, 
@@ -544,7 +494,6 @@ export const updateUserProfile = async (req: Request, res: Response, next: NextF
         languagesSpoken
       } = req.body;
       
-      // Only update fields that are provided
       const updateData: any = {};
       
       if (bio !== undefined) updateData.bio = bio;
@@ -555,15 +504,13 @@ export const updateUserProfile = async (req: Request, res: Response, next: NextF
       if (serviceAreas !== undefined) updateData.serviceAreas = serviceAreas;
       if (languagesSpoken !== undefined) updateData.languagesSpoken = languagesSpoken;
       
-      // Only update if there are fields to update
+      // update if there are fields to update
       if (Object.keys(updateData).length > 0) {
         const updatedProviderProfile = await ProviderProfile.findOneAndUpdate(
           { userId: req.user._id },
           updateData,
           { new: true }
         );
-        
-        // Return user data with updated provider profile
         const response: any = updatedUser?.toObject() || {};
         response.providerProfile = updatedProviderProfile;
         
@@ -577,7 +524,6 @@ export const updateUserProfile = async (req: Request, res: Response, next: NextF
   }
 };
 
-// @desc    Update password (handled by Firebase client SDK)
 // @route   POST /api/auth/update-password
 export const updateUserPassword = async (req: Request, res: Response, next: NextFunction) => {
   try {

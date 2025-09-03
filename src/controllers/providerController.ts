@@ -5,9 +5,7 @@ import { createError } from '../middleware/errorHandler';
 import * as admin from 'firebase-admin';
 
 /**
- * @desc    Complete provider onboarding
  * @route   POST /api/providers/onboarding
- * @access  Private (Provider only)
  */
 export const completeOnboarding = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -97,9 +95,7 @@ export const completeOnboarding = async (req: Request, res: Response, next: Next
 };
 
 /**
- * @desc    Upload provider documents
  * @route   POST /api/providers/documents
- * @access  Private (Provider only)
  */
 export const uploadDocuments = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -145,9 +141,7 @@ export const uploadDocuments = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Update provider profile picture
  * @route   POST /api/providers/profile-picture
- * @access  Private (Provider only)
  */
 export const updateProfilePicture = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -181,9 +175,7 @@ export const updateProfilePicture = async (req: Request, res: Response, next: Ne
 };
 
 /**
- * @desc    Update provider address
  * @route   POST /api/providers/address
- * @access  Private (Provider only)
  */
 export const updateAddress = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -227,9 +219,7 @@ export const updateAddress = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Get provider onboarding status
  * @route   GET /api/providers/onboarding-status
- * @access  Private (Provider only)
  */
 export const getOnboardingStatus = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -291,9 +281,7 @@ export const getOnboardingStatus = async (req: Request, res: Response, next: Nex
 };
 
 /**
- * @desc    Get provider's services
  * @route   GET /api/providers/services
- * @access  Private (Provider only)
  */
 export const getProviderServices = async (req: Request, res: Response, next: NextFunction) => {
   try {

@@ -36,7 +36,6 @@ const handleError = (error: unknown, next: NextFunction) => {
 /**
  * Create a new service
  * @route POST /services
- * @access Private (Provider only)
  */
 export const createService = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -144,7 +143,6 @@ export const createService = async (req: Request, res: Response, next: NextFunct
 /**
  * Get all services with pagination and filtering
  * @route GET /services
- * @access Public
  */
 export const getServices = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -215,7 +213,6 @@ export const getServices = async (req: Request, res: Response, next: NextFunctio
 /**
  * Get a specific service by ID
  * @route GET /services/:id
- * @access Public
  */
 export const getServiceById = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -249,7 +246,6 @@ export const getServiceById = async (req: Request, res: Response, next: NextFunc
 /**
  * Update a service
  * @route PATCH /services/:id
- * @access Private (Provider only)
  */
 export const updateService = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -377,7 +373,6 @@ export const updateService = async (req: Request, res: Response, next: NextFunct
 /**
  * Delete a service
  * @route DELETE /services/:id
- * @access Private (Provider only)
  */
 export const deleteService = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -406,7 +401,6 @@ export const deleteService = async (req: Request, res: Response, next: NextFunct
 /**
  * Search services with text search and filters
  * @route GET /services/search
- * @access Public
  */
 export const searchServices = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -476,7 +470,6 @@ export const searchServices = async (req: Request, res: Response, next: NextFunc
 /**
  * Get services by category
  * @route GET /services/category/:categoryId
- * @access Public
  */
 export const getCategoryServices = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -519,7 +512,6 @@ export const getCategoryServices = async (req: Request, res: Response, next: Nex
 /**
  * Get all service categories
  * @route GET /services/categories
- * @access Public
  */
 export const getServiceCategories = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -538,7 +530,6 @@ export const getServiceCategories = async (req: Request, res: Response, next: Ne
 /**
  * Get service category by ID with tasks
  * @route GET /services/categories/:id
- * @access Public
  */
 export const getServiceCategoryById = async (req: Request, res: Response, next: NextFunction) => {
   try {

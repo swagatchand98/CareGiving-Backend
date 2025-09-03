@@ -4,9 +4,7 @@ import { Wallet, User, Transaction } from '../models/db';
 import { createError } from '../middleware/errorHandler';
 
 /**
- * @desc    Get user wallet
  * @route   GET /api/wallet
- * @access  Private
  */
 export const getWallet = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -36,9 +34,7 @@ export const getWallet = async (req: Request, res: Response, next: NextFunction)
 };
 
 /**
- * @desc    Add funds to wallet
  * @route   POST /api/wallet/add-funds
- * @access  Private
  */
 export const addFunds = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -88,9 +84,7 @@ export const addFunds = async (req: Request, res: Response, next: NextFunction) 
 };
 
 /**
- * @desc    Pay for booking with wallet
  * @route   POST /api/wallet/pay/:bookingId
- * @access  Private
  */
 export const payWithWallet = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -175,9 +169,7 @@ export const payWithWallet = async (req: Request, res: Response, next: NextFunct
 };
 
 /**
- * @desc    Get wallet transaction history
  * @route   GET /api/wallet/transactions
- * @access  Private
  */
 export const getTransactions = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -211,9 +203,7 @@ export const getTransactions = async (req: Request, res: Response, next: NextFun
 };
 
 /**
- * @desc    Transfer funds to provider wallet
  * @route   POST /api/wallet/transfer/:providerId
- * @access  Private (Admin only)
  */
 export const transferToProvider = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -276,9 +266,7 @@ export const transferToProvider = async (req: Request, res: Response, next: Next
 };
 
 /**
- * @desc    Withdraw funds from wallet
  * @route   POST /api/wallet/withdraw
- * @access  Private
  */
 export const withdrawFunds = async (req: Request, res: Response, next: NextFunction) => {
   try {

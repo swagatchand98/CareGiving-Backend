@@ -2,9 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as notificationService from '../services/notificationService';
 
 /**
- * @desc    Get notifications for the authenticated user
  * @route   GET /api/v1/notifications
- * @access  Private
  */
 export const getUserNotifications = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -28,9 +26,7 @@ export const getUserNotifications = async (req: Request, res: Response, next: Ne
 };
 
 /**
- * @desc    Mark notification as read
  * @route   PATCH /api/v1/notifications/:id/read
- * @access  Private
  */
 export const markNotificationAsRead = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -48,9 +44,7 @@ export const markNotificationAsRead = async (req: Request, res: Response, next: 
 };
 
 /**
- * @desc    Mark all notifications as read
  * @route   PATCH /api/v1/notifications/read-all
- * @access  Private
  */
 export const markAllNotificationsAsRead = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -67,9 +61,7 @@ export const markAllNotificationsAsRead = async (req: Request, res: Response, ne
 };
 
 /**
- * @desc    Delete notification
  * @route   DELETE /api/v1/notifications/:id
- * @access  Private
  */
 export const deleteNotification = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -87,9 +79,7 @@ export const deleteNotification = async (req: Request, res: Response, next: Next
 };
 
 /**
- * @desc    Get unread notification count
  * @route   GET /api/v1/notifications/unread-count
- * @access  Private
  */
 export const getUnreadNotificationCount = async (req: Request, res: Response, next: NextFunction) => {
   try {
