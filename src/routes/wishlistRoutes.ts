@@ -1,4 +1,3 @@
-// routes/wishlistRoutes.ts
 import { Router } from 'express';
 import { 
   getUserWishlist,

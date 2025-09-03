@@ -2,10 +2,8 @@ import { Router, Request, Response, NextFunction } from 'express';
 import * as notificationController from '../controllers/notificationController';
 import { protect } from '../middleware/authMiddleware';
 
-// Type definition for async route handler
 type AsyncRouteHandler = (req: Request, res: Response, next: NextFunction) => Promise<void | Response>;
 
-// Async error handling wrapper
 const catchAsync = (fn: AsyncRouteHandler) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);
@@ -14,7 +12,7 @@ const catchAsync = (fn: AsyncRouteHandler) => {
 
 const router = Router();
 
-// Apply authentication middleware to all routes
+// authentication middleware
 router.use(protect);
 
 // Get notifications for the authenticated user

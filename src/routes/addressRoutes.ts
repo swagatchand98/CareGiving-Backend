@@ -1,4 +1,3 @@
-// routes/addressRoutes.ts
 import { Router } from 'express';
 import { 
   getUserAddresses,

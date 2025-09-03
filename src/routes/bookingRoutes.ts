@@ -1,4 +1,3 @@
-// routes/bookingRoutes.ts
 import { Router } from 'express';
 import { 
   createBooking, 

@@ -19,10 +19,8 @@ import {
 } from '../controllers/phoneVerificationController';
 import { protect, restrictTo } from '../middleware/authMiddleware';
 
-// Type definition for async route handler
 type AsyncRouteHandler = (req: Request, res: Response, next: NextFunction) => Promise<void | Response>;
 
-// Async error handling wrapper
 const catchAsync = (fn: AsyncRouteHandler) => {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch(next);

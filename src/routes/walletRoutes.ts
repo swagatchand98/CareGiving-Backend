@@ -1,4 +1,3 @@
-// routes/walletRoutes.ts
 import { Router } from 'express';
 import { 
   getWallet,

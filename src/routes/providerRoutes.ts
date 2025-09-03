@@ -1,4 +1,3 @@
-// routes/providerRoutes.ts
 import { Router } from 'express';
 import { 
   completeOnboarding,

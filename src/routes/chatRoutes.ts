@@ -1,4 +1,3 @@
-// routes/chatRoutes.ts
 import { Router } from 'express';
 import {
   getChatByBookingId,

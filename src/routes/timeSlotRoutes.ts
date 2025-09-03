@@ -1,4 +1,3 @@
-// routes/timeSlotRoutes.ts
 import { Router } from 'express';
 import { 
   createTimeSlots,

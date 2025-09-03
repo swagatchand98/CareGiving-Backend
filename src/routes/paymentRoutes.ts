@@ -14,8 +14,6 @@ import express from 'express';
 
 const router = Router();
 
-// Stripe webhook route - no authentication required
-// Use raw body for Stripe webhook verification
 router.post(
   '/webhook',
   express.raw({ type: 'application/json' }),

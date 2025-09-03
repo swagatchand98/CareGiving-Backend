@@ -1,4 +1,3 @@
-// routes/reviewRoutes.ts
 import { Router } from 'express';
 import { 
   createReview,
