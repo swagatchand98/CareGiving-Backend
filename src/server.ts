@@ -72,28 +72,23 @@ class Server {
   }
 
   public async start() {
-    // Initialize application dependencies
     await this.app.initialize();
 
-    // Set port
     const port = this.normalizePort(config.PORT || '5000');
     this.app.express.set('port', port);
 
-    // Setup Socket.IO
     setupSocketIO(this.io);
     setSocketIO(this.io);
     console.log('🔌 Socket.IO initialized');
     
-    // Schedule weekly provider payouts
     scheduleProviderPayouts();
     console.log('💰 Weekly provider payouts scheduled');
 
-    // Start server
     this.server.listen(port);
     this.server.on('error', this.onError.bind(this));
     this.server.on('listening', this.onListening.bind(this));
 
-    // Graceful shutdown
+
     process.on('SIGTERM', () => {
       console.log('🛑 SIGTERM received. Shutting down gracefully');
       this.server.close(() => {
@@ -104,7 +99,6 @@ class Server {
   }
 }
 
-// Start the server
 const server = new Server();
 server.start().catch(err => {
   console.error('❌ Failed to start server:', err);

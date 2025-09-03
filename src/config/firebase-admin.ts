@@ -19,7 +19,7 @@ try {
 } catch (error) {
   console.error('Failed to initialize Firebase Admin SDK:', error);
   
-  // Create a mock auth implementation for development
+  // mock auth for development
   console.warn('Using mock Firebase Auth implementation for development');
   
   const mockAuth = {

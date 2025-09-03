@@ -36,17 +36,14 @@ export function loadEnvironmentVariables() {
     throw new Error(`Required environment variables are not defined: ${missingVars.join(', ')}`);
   }
   
-  // Warn about missing email configuration
   if (!config.EMAIL_USER || !config.EMAIL_PASSWORD) {
     console.warn('Email configuration is incomplete. Email notifications may not work properly.');
   }
   
-  // Warn about missing Stripe webhook secret
   if (!config.STRIPE_WEBHOOK_SECRET) {
     console.warn('Stripe webhook secret is not defined. Webhook verification will not work properly.');
   }
   
-  // Warn about missing Stripe Connect webhook secret
   if (!config.STRIPE_CONNECT_WEBHOOK_SECRET) {
     console.warn('Stripe Connect webhook secret is not defined. Connect webhook verification will not work properly.');
   }

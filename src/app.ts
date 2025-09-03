@@ -23,7 +23,7 @@ import providerEarningsRoutes from './routes/providerEarningsRoutes';
 import providerConnectRoutes from './routes/providerConnectRoutes';
 import { connectDatabase } from './config/database';
 import { loadEnvironmentVariables } from './config/env';
-import './config/firebase-admin'; // Initialize Firebase Admin SDK
+import './config/firebase-admin';
 
 class App {
   public express: Express;
@@ -36,13 +36,11 @@ class App {
   }
 
   private initializeMiddlewares() {
-    // Environment configuration
+  
     loadEnvironmentVariables();
-
-    // Security middlewares
     this.express.use(helmet());
     
-    // Configure CORS to be more permissive in development mode
+    // Configure CORS
     if (process.env.NODE_ENV === 'development') {
       this.express.use(cors({
         origin: '*', // Allow all origins in development
@@ -59,67 +57,62 @@ class App {
       console.log('🔒 CORS configured for production');
     }
 
-    // Request parsing and compression
     this.express.use(express.json({ limit: '10kb' }));
     this.express.use(express.urlencoded({ extended: true }));
     this.express.use(compression());
     
-    // Fix JSON response formatting
     this.express.set('json spaces', 2);
 
-    // Data sanitization against NoSQL query injection
     this.express.use(mongoSanitize());
 
-    // Rate limiting - different limits for authenticated and unauthenticated users
+    // Rate limiting
     const publicLimiter = rateLimit({
-      max: 300, // Increased from 100 to 300 requests per windowMs
+      max: 300,
       windowMs: 15 * 60 * 1000, // 15 minutes
       message: 'Too many requests from this IP, please try again later',
-      standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-      legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+      standardHeaders: true,
+      legacyHeaders: false,
     });
     
     const authLimiter = rateLimit({
-      max: 1200, // Increased from 600 to 1200 requests per windowMs
+      max: 1200,
       windowMs: 15 * 60 * 1000, // 15 minutes
       message: 'Too many requests, please try again later',
-      standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-      legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+      standardHeaders: true,
+      legacyHeaders: false,
     });
-    
-    // Apply rate limiting to all routes except provider-specific routes and timeslot service routes
+
+    // rate limiting to all routes (except provider routes and timeslot routes)
     this.express.use('/api', (req: Request, res: Response, next: NextFunction) => {
-      // Skip rate limiting for provider-specific routes and timeslot service routes
       if (req.path.startsWith('/v1/providers/') || 
           (req.path.startsWith('/v1/timeslots/service/') && req.method === 'GET')) {
         return next();
       }
       
-      // Apply different rate limiters based on authentication status
       if (req.headers.authorization) {
-        // For authenticated users, apply the higher limit
+        // higher limit
         authLimiter(req, res, next);
       } else {
-        // For unauthenticated users, apply the lower limit
+        // lower limit
         publicLimiter(req, res, next);
       }
     });
 
-    // Apply caching middleware to frequently accessed routes
+    // caching middleware
     if (process.env.NODE_ENV === 'production' || process.env.ENABLE_CACHING === 'true') {
       const { cacheResponse } = require('./middleware/cacheMiddleware');
       
       // Cache service-related GET endpoints
       this.express.use('/api/v1/services', (req: Request, res: Response, next: NextFunction) => {
         if (req.method === 'GET') {
-          // Cache for 5 minutes by default
+          // Cache for 5 minutes
           const ttl = req.path.includes('/categories') ? 3600 : 300; // Cache categories for 1 hour
           return cacheResponse(ttl)(req, res, next);
         }
         next();
       });
       
-      // Cache booking-related GET endpoints (except for active bookings which need real-time data)
+      // Cache booking-related GET endpoints (except for active bookings)
       this.express.use('/api/v1/bookings', (req: Request, res: Response, next: NextFunction) => {
         if (req.method === 'GET' && !req.path.includes('/active')) {
           // Cache for 2 minutes
@@ -168,18 +161,16 @@ class App {
     // Base route
     this.express.get('/api/v1', (req: Request, res: Response) => {
       res.status(200).json({
-        message: 'Caregiving Platform API',
+        message: 'CareCrew Platform API',
         status: 'Running',
         timestamp: new Date().toISOString()
       });
     });
     
-    // Import auth middleware
     const { protect, restrictTo } = require('./middleware/authMiddleware');
     
     // Cache statistics route (admin only)
     this.express.get('/api/v1/admin/cache-stats', protect, restrictTo('admin'), (req: Request, res: Response) => {
-      // Import cache stats from cacheMiddleware
       const { getCacheStats } = require('./middleware/cacheMiddleware');
       const stats = getCacheStats();
       
@@ -191,10 +182,8 @@ class App {
     
     // Clear cache route (admin only)
     this.express.post('/api/v1/admin/clear-cache', protect, restrictTo('admin'), (req: Request, res: Response) => {
-      // Import clearCache from cacheMiddleware
       const { clearCache } = require('./middleware/cacheMiddleware');
       
-      // Get pattern from request body or clear all if not specified
       const { pattern = '' } = req.body;
       
       // Clear cache
@@ -225,7 +214,7 @@ class App {
     // Provider specific routes
     this.express.use('/api/v1/providers/earnings', providerEarningsRoutes);
     
-    // Provider connect routes - ensure these are registered after the main provider routes
+    // Provider connect routes
     this.express.use('/api/v1/providers/connect', providerConnectRoutes);
     
     // Debug route to check if provider connect routes are registered
