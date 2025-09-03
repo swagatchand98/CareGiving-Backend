@@ -9,7 +9,6 @@ interface ValidationSchema {
 
 /**
  * Middleware for validating request data
- * @param schema - Validation schema for request body, query, and params
  */
 export const validateRequest = (schema: ValidationSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
