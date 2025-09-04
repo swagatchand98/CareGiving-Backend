@@ -93,7 +93,7 @@ export const validateRequest = (schema: ValidationSchema) => {
       );
       
       if (error) {
-        errors[key] = error.details.map((detail) => detail.message);
+        errors[key] = error.details.map((detail: any) => detail.message);
       }
     });
     
