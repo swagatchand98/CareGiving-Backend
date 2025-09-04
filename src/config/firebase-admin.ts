@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import * as path from 'path';
 
 // Use the service account JSON file directly
-const serviceAccountPath = path.join(__dirname, '../../firebase-service-account.json');
+const serviceAccountPath = path.join(__dirname, process.env.FIREBASE_SERVICE_ACCOUNT_PATH || '../../firebase-service-account.json');
 
 let auth: admin.auth.Auth;
 let app: admin.app.App;
